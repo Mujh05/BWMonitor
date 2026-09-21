@@ -2,204 +2,201 @@ import AppKit
 import Combine
 import Darwin
 import Foundation
-import SwiftUI
 
+/// One interactive SSH shell in BWMonitor's terminal.
+///
+/// ssh runs in its own session with a pseudo-terminal as its controlling
+/// terminal, like in Terminal.app: it can prompt for a password when none is
+/// saved, and window size changes reach the server. Saved secrets are
+/// supplied by the askpass helper, never typed into the session.
 @MainActor
 final class TerminalSession: ObservableObject, Identifiable {
     let id = UUID()
     let server: Server
-    @Published var output = ""
-    @Published var isConnected = false
-    @Published var title: String
-    @Published var command = ""
-    @Published var history: [String] = []
+    let buffer = TerminalBuffer()
+    @Published private(set) var title: String
+    @Published private(set) var isConnected = false
+    @Published private(set) var isRunningFullScreenProgram = false
 
-    private var process: Process?
-    private var masterHandle: FileHandle?
-    private var slaveHandle: FileHandle?
-    private var sentPassword = false
-    private var sentPassphrase = false
+    /// Receives every change to `buffer`, for drawing.
+    var onUpdate: ((TerminalUpdate) -> Void)?
+
     private let ssh: SSHManager
-    private let keychain: KeychainStore
+    private var pid: pid_t = 0
+    private var master: FileHandle?
+    private var exitSource: DispatchSourceProcess?
+    private var size = winsize(ws_row: 30, ws_col: 100, ws_xpixel: 0, ws_ypixel: 0)
 
-    init(server: Server, ssh: SSHManager, keychain: KeychainStore) {
+    init(server: Server, ssh: SSHManager) {
         self.server = server
         self.ssh = ssh
-        self.keychain = keychain
         title = server.name
+        buffer.resize(columns: Int(size.ws_col), rows: Int(size.ws_row))
     }
 
-    func connect() async {
-        guard process == nil else { return }
+    func connect() {
+        guard pid == 0 else { return }
         do {
-            switch try await ssh.hostKeyStatus(for: server) {
-            case .trusted:
-                break
-            case .unknown:
-                throw SSHError.hostNotTrusted
-            case .changed:
-                throw SSHError.hostKeyChanged
-            }
-            let password = try keychain.read(for: server.id, kind: .sshPassword)
-            let passphrase = try keychain.read(for: server.id, kind: .privateKeyPassphrase)
-            try launch(password: password, passphrase: passphrase)
+            let invocation = try ssh.terminalInvocation(for: server)
+            notice(String(
+                format: NSLocalizedString("Connecting securely to %@…", comment: "Terminal connection status"),
+                server.name
+            ))
+            try launch(invocation)
         } catch {
-            append(
-                "\r\n[\(NSLocalizedString("Connection blocked", comment: "Terminal connection status"))] "
-                    + "\(error.localizedDescription)\r\n"
+            notice(
+                NSLocalizedString("Connection blocked", comment: "Terminal connection status")
+                    + ": " + error.localizedDescription
             )
         }
     }
 
-    func sendCurrentCommand() {
-        guard !command.isEmpty else { return }
-        history.append(command)
-        send(command + "\n")
-        command = ""
+    func send(_ data: Data) {
+        guard let master else { return }
+        do {
+            try master.write(contentsOf: data)
+        } catch {
+            notice(NSLocalizedString("Write failed", comment: "Terminal write error") + ": " + error.localizedDescription)
+        }
     }
 
     func send(_ text: String) {
-        guard let data = text.data(using: .utf8) else { return }
-        do {
-            try masterHandle?.write(contentsOf: data)
-        } catch {
-            append(
-                "\r\n[\(NSLocalizedString("Write failed", comment: "Terminal write error"))] "
-                    + "\(error.localizedDescription)\r\n"
-            )
-        }
+        send(Data(text.utf8))
     }
 
-    func resize(rows: UInt16, columns: UInt16) {
-        guard let masterHandle else { return }
-        var size = winsize(ws_row: rows, ws_col: columns, ws_xpixel: 0, ws_ypixel: 0)
-        _ = ioctl(masterHandle.fileDescriptor, TIOCSWINSZ, &size)
+    /// Pastes text as the shell expects: line breaks become returns, and
+    /// with bracketed paste the shell does not run pasted lines by itself.
+    func paste(_ text: String) {
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\r").replacingOccurrences(of: "\n", with: "\r")
+        send(buffer.bracketedPaste ? "\u{1B}[200~" + normalized + "\u{1B}[201~" : normalized)
+    }
+
+    func resize(columns: Int, rows: Int) {
+        let columns = UInt16(clamping: max(columns, 20))
+        let rows = UInt16(clamping: max(rows, 5))
+        guard columns != size.ws_col || rows != size.ws_row else { return }
+        size.ws_col = columns
+        size.ws_row = rows
+        buffer.resize(columns: Int(columns), rows: Int(rows))
+        if let master { _ = ioctl(master.fileDescriptor, TIOCSWINSZ, &size) }
+    }
+
+    func clearScrollback() {
+        buffer.clear()
+        onUpdate?(TerminalUpdate(removedLines: 0, firstChangedLine: 0))
     }
 
     func disconnect() {
-        masterHandle?.readabilityHandler = nil
-        if process?.isRunning == true { process?.terminate() }
-        try? masterHandle?.close()
-        try? slaveHandle?.close()
-        masterHandle = nil
-        slaveHandle = nil
-        process = nil
+        master?.readabilityHandler = nil
+        if pid > 0, isConnected { kill(pid, SIGHUP) }
+        try? master?.close()
+        master = nil
         isConnected = false
     }
 
-    private func launch(password: String?, passphrase: String?) throws {
-        var master: Int32 = -1
-        var slave: Int32 = -1
-        guard openpty(&master, &slave, nil, nil, nil) == 0 else {
+    // MARK: Process
+
+    private func launch(_ invocation: SSHManager.Invocation) throws {
+        var environment = ProcessInfo.processInfo.environment.merging(invocation.environment) { $1 }
+        environment["TERM"] = "xterm-256color"
+        environment["LANG"] = environment["LANG"] ?? "C.UTF-8"
+
+        // Everything the child needs is allocated before forking: between
+        // fork and exec only async-signal-safe calls are allowed.
+        let path = strdup("/usr/bin/ssh")
+        let arguments = CStringArray(["/usr/bin/ssh"] + invocation.arguments)
+        let environmentList = CStringArray(environment.map { "\($0.key)=\($0.value)" })
+        defer {
+            free(path)
+            arguments.deallocate()
+            environmentList.deallocate()
+        }
+        // forkpty makes the pseudo-terminal ssh's controlling terminal, with
+        // ssh in the foreground, so ssh can ask for a password or passphrase.
+        var masterFD: Int32 = -1
+        let childPID = forkpty(&masterFD, nil, nil, &size)
+        if childPID == 0 {
+            execve(path, arguments.pointer, environmentList.pointer)
+            _exit(127)
+        }
+        guard childPID > 0 else {
             throw SSHError.commandFailed(
                 NSLocalizedString("Could not create a pseudo terminal.", comment: "Terminal setup error")
             )
         }
-        let masterHandle = FileHandle(fileDescriptor: master, closeOnDealloc: true)
-        let slaveHandle = FileHandle(fileDescriptor: slave, closeOnDealloc: true)
-        self.masterHandle = masterHandle
-        self.slaveHandle = slaveHandle
+        let masterHandle = FileHandle(fileDescriptor: masterFD, closeOnDealloc: true)
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        var arguments = ssh.connectionArguments(for: server, batchMode: false)
-        arguments += ["-tt", "\(server.username)@\(server.host)"]
-        process.arguments = arguments
-        process.standardInput = slaveHandle
-        process.standardOutput = slaveHandle
-        process.standardError = slaveHandle
-        process.terminationHandler = { [weak self] process in
-            Task { @MainActor in
-                self?.append(
-                    "\r\n[" + String(
-                        format: NSLocalizedString("Session ended: %d", comment: "Terminal exit status"),
-                        process.terminationStatus
-                    ) + "]\r\n"
-                )
-                self?.isConnected = false
-            }
-        }
+        pid = childPID
+        master = masterHandle
+        isConnected = true
+
         masterHandle.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            Task { @MainActor in
-                self?.receive(text, password: password, passphrase: passphrase)
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
+            // The main queue keeps chunks in order.
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.receive(data) } }
+        }
+
+        let source = DispatchSource.makeProcessSource(identifier: childPID, eventMask: .exit, queue: .main)
+        source.setEventHandler { [weak self] in
+            var exitStatus: Int32 = 0
+            waitpid(childPID, &exitStatus, 0)
+            MainActor.assumeIsolated { self?.processExited(status: exitStatus) }
+        }
+        source.resume()
+        exitSource = source
+    }
+
+    private func receive(_ data: Data) {
+        let update = buffer.feed(data)
+        if let title = buffer.title, !title.isEmpty, title != self.title { self.title = title }
+        if buffer.alternateScreen != isRunningFullScreenProgram {
+            isRunningFullScreenProgram = buffer.alternateScreen
+        }
+        onUpdate?(update)
+    }
+
+    private func processExited(status: Int32) {
+        exitSource?.cancel()
+        exitSource = nil
+        isConnected = false
+        isRunningFullScreenProgram = false
+        let code = (status & 0x7F) == 0 ? (status >> 8) & 0xFF : 128 + (status & 0x7F)
+        // Let the last output arrive before closing the terminal.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.master?.readabilityHandler = nil
+                try? self.master?.close()
+                self.master = nil
+                self.notice(String(format: NSLocalizedString("Session ended: %d", comment: "Terminal exit status"), code))
             }
         }
-        try process.run()
-        self.process = process
-        isConnected = true
-        append(
-            String(
-                format: NSLocalizedString("Connecting securely to %@…", comment: "Terminal connection status"),
-                server.name
-            ) + "\r\n"
-        )
     }
 
-    private func receive(_ text: String, password: String?, passphrase: String?) {
-        let lower = text.lowercased()
-        if lower.contains("password:"), let password, !sentPassword {
-            sentPassword = true
-            send(password + "\n")
-        } else if lower.contains("enter passphrase for key"), let passphrase, !sentPassphrase {
-            sentPassphrase = true
-            send(passphrase + "\n")
-        }
-        append(text)
-    }
-
-    private func append(_ text: String) {
-        output += text
-        if output.count > 160_000 {
-            output.removeFirst(output.count - 120_000)
-        }
+    private func notice(_ text: String) {
+        let prefix = buffer.lines.last?.isEmpty == false ? "\r\n" : ""
+        onUpdate?(buffer.feed(prefix + "\u{1B}[2m" + text + "\u{1B}[0m\r\n"))
     }
 }
 
-enum ANSIParser {
-    static func attributed(_ source: String) -> AttributedString {
-        var result = AttributedString()
-        var foreground: Color = .primary
-        let pattern = #"\u{001B}\[([0-9;]*)m"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return AttributedString(source)
-        }
-        let ns = source as NSString
-        var location = 0
-        for match in regex.matches(in: source, range: NSRange(location: 0, length: ns.length)) {
-            if match.range.location > location {
-                var segment = AttributedString(ns.substring(with: NSRange(location: location, length: match.range.location - location)))
-                segment.foregroundColor = foreground
-                result.append(segment)
-            }
-            let codes = match.range(at: 1).location == NSNotFound
-                ? []
-                : ns.substring(with: match.range(at: 1)).split(separator: ";").compactMap { Int($0) }
-            for code in codes.isEmpty ? [0] : codes {
-                foreground = color(for: code) ?? (code == 0 ? .primary : foreground)
-            }
-            location = match.range.location + match.range.length
-        }
-        if location < ns.length {
-            var segment = AttributedString(ns.substring(from: location))
-            segment.foregroundColor = foreground
-            result.append(segment)
-        }
-        return result
+/// A NULL-terminated array of C strings for execve.
+private struct CStringArray {
+    let pointer: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>
+    private let count: Int
+
+    init(_ strings: [String]) {
+        count = strings.count
+        pointer = .allocate(capacity: strings.count + 1)
+        for (index, string) in strings.enumerated() { pointer[index] = strdup(string) }
+        pointer[strings.count] = nil
     }
 
-    private static func color(for code: Int) -> Color? {
-        switch code {
-        case 30: .black
-        case 31, 91: .red
-        case 32, 92: .green
-        case 33, 93: .yellow
-        case 34, 94: .blue
-        case 35, 95: .purple
-        case 36, 96: .cyan
-        case 37, 97: .white
-        default: nil
-        }
+    func deallocate() {
+        for index in 0..<count { free(pointer[index]) }
+        pointer.deallocate()
     }
 }

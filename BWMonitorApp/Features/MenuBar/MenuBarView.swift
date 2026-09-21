@@ -22,12 +22,13 @@ struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Circle()
-                    .fill(state.selectedMetrics == nil ? Color.secondary : Color.green)
-                    .frame(width: 9, height: 9)
+                if let server = state.selectedServer {
+                    ConnectionBadge(connection: state.selectedConnection, trusted: state.ssh.isTrusted(server))
+                        .font(.caption)
+                }
             }
 
-            if let metrics = state.selectedMetrics {
+            if let metrics = state.selectedMetrics, state.selectedConnection.isConnected {
                 Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 8) {
                     GridRow { Text("CPU").foregroundStyle(.secondary); Text(metrics.cpuUsage, format: BWFormat.percentage).monospacedDigit() }
                     GridRow { Text("RAM").foregroundStyle(.secondary); Text(metrics.memoryPercentage, format: BWFormat.percentage).monospacedDigit() }
@@ -63,6 +64,22 @@ struct MenuBarView: View {
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 Spacer()
+                if state.monitoringActive {
+                    Button {
+                        state.stopMonitoring()
+                    } label: {
+                        Image(systemName: "pause.fill")
+                    }
+                    .help("Stop Monitoring")
+                } else {
+                    Button {
+                        state.beginMonitoring()
+                    } label: {
+                        Image(systemName: "play.fill")
+                    }
+                    .disabled(state.selectedServer == nil || state.isDemoMode)
+                    .help("Start Monitoring")
+                }
                 Button {
                     Task { await state.refreshAll() }
                 } label: {

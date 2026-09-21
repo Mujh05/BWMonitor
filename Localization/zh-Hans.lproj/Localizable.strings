@@ -16,8 +16,6 @@
 "Cancel" = "取消";
 "Save" = "保存";
 "Delete" = "删除";
-"Edit" = "编辑";
-"OK" = "好";
 "Quit" = "退出";
 "Add Server" = "添加服务器";
 "Edit Server" = "编辑服务器";
@@ -29,8 +27,6 @@
 /* First-run and dashboard */
 "Add your first VPS" = "添加第一台 VPS";
 "Server credentials stay in your Mac Keychain." = "服务器凭据会保存在这台 Mac 的钥匙串中。";
-"No live SSH sample yet" = "尚无实时 SSH 数据";
-"Verify the host key, then start monitoring or refresh once." = "请先验证主机密钥，然后开始监控或手动刷新。";
 "Uptime" = "运行时间";
 "Load %@" = "负载 %@";
 "Load Average" = "平均负载";
@@ -50,15 +46,13 @@
 "%lld logical cores" = "%lld 个逻辑核心";
 "%@ used" = "已使用 %@";
 "%lld cores  ·  user %@  ·  system %@" = "%1$lld 核 · 用户 %2$@ · 系统 %3$@";
-"%@ of %@" = "%1$@，共 %2$@";
 "Monthly Traffic" = "月度流量";
 "Resets %@" = "下次重置：%@";
 "of %@" = "共 %@";
+"%@ of %@" = "%1$@，共 %2$@";
 "%@ remaining" = "剩余 %@";
 "Projected to exceed plan" = "预计将超出套餐";
 "On track for this cycle" = "本周期流量充足";
-"Last 24 Hours" = "最近 24 小时";
-"CPU history for the last 24 hours" = "最近 24 小时的 CPU 历史";
 
 /* Monitoring details */
 "History" = "历史";
@@ -103,42 +97,23 @@
 /* Server management */
 "No servers" = "暂无服务器";
 "Add a VPS to begin monitoring." = "添加一台 VPS 即可开始监控。";
-"Verify Host Key" = "验证主机密钥";
 "Delete Server?" = "删除服务器？";
 "%@ and its Keychain credentials will be removed from BWMonitor. The VPS itself is not changed." = "将从 BWMonitor 中移除 %@ 及其钥匙串凭据；VPS 本身不会受到影响。";
-"Trust SSH Host?" = "信任 SSH 主机？";
 "Trust" = "信任";
-"%1$@\n%2$@\n%3$@\n\nConfirm this fingerprint through your provider before trusting it." = "%1$@\n%2$@\n%3$@\n\n信任前，请先通过服务商控制台核对该指纹。";
-"SSH Verification" = "SSH 验证";
-"Host key trusted for %@." = "已信任 %@ 的主机密钥。";
-"Host key matches %@." = "主机密钥与 %@ 匹配。";
-"Connection blocked. The saved key (%1$@) does not match the server (%2$@)." = "连接已阻止。已保存的密钥（%1$@）与服务器密钥（%2$@）不匹配。";
 "Display name" = "显示名称";
 "Host or IP" = "主机名或 IP";
 "SSH username" = "SSH 用户名";
 "SSH port" = "SSH 端口";
 "Provider" = "服务商";
-"Operating system" = "操作系统";
 "Generic Linux" = "通用 Linux";
 "BandwagonHost" = "BandwagonHost";
-"SSH Authentication" = "SSH 身份验证";
-"Method" = "方式";
 "Private Key / SSH Agent" = "私钥 / SSH Agent";
 "Password" = "密码";
-"Private key path (optional when using SSH agent)" = "私钥路径";
-"Private key passphrase (leave blank to keep existing)" = "私钥密码";
-"SSH password (leave blank to keep existing)" = "SSH 密码";
-"API key (leave blank to keep existing)" = "API 密钥";
-"Private-key paths are optional with SSH Agent; blank secrets keep saved values." = "使用 SSH Agent 时可不填私钥路径；敏感凭据留空会保留现有值。";
-"Secrets are stored only in macOS Keychain." = "敏感凭据仅保存在 macOS 钥匙串中。";
 
 /* Terminal */
 "No terminal session" = "尚无终端会话";
-"Verify the SSH host key before opening a terminal." = "请先验证 SSH 主机密钥再打开终端。";
 "New Terminal" = "新建终端";
 "Close %@ terminal" = "关闭 %@ 终端";
-"Send command" = "输入命令";
-"Send" = "发送";
 "Connection blocked" = "连接已阻止";
 "Write failed" = "写入失败";
 "Could not create a pseudo terminal." = "无法创建伪终端。";
@@ -159,10 +134,7 @@
 "Status item" = "状态项目";
 "The menu bar keeps the latest collected snapshot; it does not increase the refresh rate." = "菜单栏显示最近采集的快照，不会提高刷新频率。";
 "Refresh Intervals" = "刷新间隔";
-"CPU and memory" = "CPU 与内存";
-"%@ seconds" = "%@ 秒";
 "%lld seconds" = "%lld 秒";
-"Keep %@ days" = "保留 %@ 天";
 "Keep %lld days" = "保留 %lld 天";
 "Monthly traffic" = "月度流量";
 "Warning Thresholds" = "告警阈值";
@@ -173,11 +145,8 @@
 "Light" = "浅色";
 "Dark" = "深色";
 "Credentials" = "凭据";
-"API keys and passwords are stored in macOS Keychain." = "API 密钥和密码保存在 macOS 钥匙串中。";
 "Server identities are pinned in a private known_hosts file." = "服务器身份固定保存在独立的 known_hosts 文件中。";
 "A changed SSH host key blocks the connection." = "SSH 主机密钥发生变化时会阻止连接。";
-"Background Monitoring" = "后台监控";
-"Private-key or SSH-agent authentication is required. Saved passwords are only supplied to an interactive terminal prompt." = "后台监控需要私钥或 SSH Agent；已保存的密码仅会提供给交互式终端提示。";
 "Application" = "应用";
 "Software Update" = "软件更新";
 "Check for Updates" = "检查更新";
@@ -185,7 +154,6 @@
 "Up to date (%@)" = "已是最新版本（%@）";
 "New version available: %@" = "发现新版本：%@";
 "Update check failed: %@" = "检查更新失败：%@";
-"Download" = "下载";
 "Version" = "版本";
 "Architecture" = "架构";
 "Native macOS · SwiftUI" = "原生 macOS · SwiftUI";
@@ -204,7 +172,6 @@
 "available" = "可用";
 "unavailable" = "不可用";
 "Could not load servers: %@" = "无法加载服务器：%@";
-"Enter a name, host, valid port, and username." = "请输入名称、主机、有效端口和用户名。";
 "Could not save server: %@" = "无法保存服务器：%@";
 "Could not delete server: %@" = "无法删除服务器：%@";
 "Could not load history: %@" = "无法加载历史记录：%@";
@@ -221,11 +188,9 @@
 "The SSH server configuration is invalid." = "SSH 服务器配置无效。";
 "Verify and trust this server's host key before connecting." = "连接前请验证并信任该服务器的主机密钥。";
 "The SSH host key changed. The connection was blocked." = "SSH 主机密钥已更改，连接已被阻止。";
-"Background monitoring requires a private key or SSH agent. Password login remains available in Terminal." = "后台监控需要私钥或 SSH Agent；仍可在终端中使用密码登录。";
 "The SSH command failed." = "SSH 命令执行失败。";
 "The server did not provide an SSH host key." = "服务器未提供 SSH 主机密钥。";
 "SSH operation timed out." = "SSH 操作超时。";
-"Invalid saved key" = "已保存的密钥无效";
 "%@ traffic warning" = "%@ 流量告警";
 "%1$@ of %2$@ used" = "已使用 %1$@，共 %2$@";
 "%@ CPU is high" = "%@ 的 CPU 使用率过高";
@@ -240,3 +205,156 @@
 "OpenBSD Secure Shell server" = "OpenBSD 安全 Shell 服务器";
 "High performance web server" = "高性能 Web 服务器";
 "Xray service" = "Xray 服务";
+
+/* Server editor */
+"Edit…" = "编辑…";
+"Delete…" = "删除…";
+"Edit Server…" = "编辑服务器…";
+"My VPS" = "我的 VPS";
+"Host Key" = "主机密钥";
+"Not verified yet" = "尚未验证";
+"Check Host Key" = "检查主机密钥";
+"Contacting the server…" = "正在联系服务器…";
+"New server. Confirm its fingerprint." = "这是新服务器，请核对它的指纹。";
+"To be sure, run `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` in your provider's web console and compare the result." = "如需确认，可在服务商的网页控制台中运行 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`，并与上面的指纹比较。";
+"Trusted" = "已信任";
+"Options" = "选项";
+"Check Again" = "重新检查";
+"Forget Host Key" = "忘记主机密钥";
+"The server's host key changed" = "服务器的主机密钥已更改";
+"This is expected after reinstalling the system. Otherwise someone may be intercepting the connection; do not trust the new key." = "重装系统后出现这种情况是正常的。否则可能有人在拦截连接，请不要信任新密钥。";
+"Saved" = "已保存";
+"Now" = "当前";
+"Trust New Key" = "信任新密钥";
+"Try Again" = "重试";
+"The host key proves you are talking to your server. BWMonitor refuses to connect if it ever changes." = "主机密钥用来证明你连接的确实是自己的服务器。一旦它发生变化，BWMonitor 会拒绝连接。";
+"Sign-In" = "登录";
+"Sign in with" = "登录方式";
+"SSH Key" = "SSH 密钥";
+"Passwords and passphrases are kept only in the macOS Keychain. Only the ones the chosen method needs are kept." = "密码和私钥密码只保存在 macOS 钥匙串中，并且只保留当前登录方式需要的那一项。";
+"Key" = "密钥";
+"BWMonitor Key" = "BWMonitor 密钥";
+"Create BWMonitor Key" = "创建 BWMonitor 密钥";
+"In ~/.ssh" = "~/.ssh 中的密钥";
+"Keys in SSH Agent" = "SSH Agent 中的密钥";
+"Choose Key File…" = "选择密钥文件…";
+"Paste Private Key…" = "粘贴私钥…";
+"ssh uses the keys loaded in your SSH agent (ssh-add) and the default keys in ~/.ssh." = "ssh 会使用 SSH Agent 中已载入的密钥（ssh-add）以及 ~/.ssh 中的默认密钥。";
+"BWMonitor creates its own key and keeps it on this Mac." = "BWMonitor 会创建自己的密钥，并保存在这台 Mac 上。";
+"Create Key" = "创建密钥";
+"Fingerprint" = "指纹";
+"Passphrase" = "私钥密码";
+"Saved in Keychain" = "已存入钥匙串";
+"Required" = "必填";
+"Optional" = "可选";
+"Copy Public Key" = "拷贝公钥";
+"Show in Finder" = "在访达中显示";
+"Install on Server…" = "安装到服务器…";
+"Trust the host key first." = "请先信任主机密钥。";
+"Other users can read this key file, so SSH refuses it." = "其他用户可以读取这个密钥文件，因此 SSH 拒绝使用它。";
+"Fix" = "修复";
+"Key login is safer and works without a saved password." = "密钥登录更安全，也不需要保存密码。";
+"BWMonitor can create its own key, add it to the server using this password once, and switch to key login." = "BWMonitor 可以创建自己的密钥，用这个密码登录一次，把密钥添加到服务器上，然后改用密钥登录。";
+"Set Up Key Login…" = "设置密钥登录…";
+"API key" = "API 密钥";
+"Find both in the KiwiVM control panel under API. They are used only to read monthly traffic." = "两者都可以在 KiwiVM 控制面板的 API 页面找到，仅用于读取月度流量。";
+"Connection Test" = "连接测试";
+"Test Connection" = "测试连接";
+"Connection failed" = "连接失败";
+"Fix Key Permissions" = "修复密钥权限";
+"Choose an SSH Private Key" = "选择 SSH 私钥";
+"Choose the private key, not the .pub file. Press ⌘⇧. to show hidden files." = "请选择私钥文件，而不是 .pub 文件。按 ⌘⇧. 可显示隐藏文件。";
+"Choose" = "选择";
+"Install Public Key" = "安装公钥";
+"Set Up Key Login" = "设置密钥登录";
+"BWMonitor signs in to %@ once with the password and adds the key to ~/.ssh/authorized_keys. Keys already on the server stay as they are." = "BWMonitor 会用密码登录 %@ 一次，把密钥添加到 ~/.ssh/authorized_keys。服务器上已有的密钥保持不变。";
+"Password for %@" = "%@ 的密码";
+"Leave blank to use the saved password" = "留空则使用已保存的密码";
+"Install" = "安装";
+"Set Up" = "设置";
+"Done" = "完成";
+"Paste Private Key" = "粘贴私钥";
+"Paste the whole key, including the BEGIN and END lines. BWMonitor saves it in its own folder, readable only by you." = "请粘贴完整的私钥，包括 BEGIN 和 END 两行。BWMonitor 会把它保存在自己的文件夹中，只有你能读取。";
+"Paste from Clipboard" = "从剪贴板粘贴";
+"Import" = "导入";
+"Signing in…" = "正在登录…";
+"Installing the public key…" = "正在安装公钥…";
+"Signing in with the key…" = "正在用密钥登录…";
+"The key is installed and works." = "密钥已安装，可以正常登录。";
+"Connected to %1$@ in %2$@ s." = "已连接到 %1$@，用时 %2$@ 秒。";
+"Enter a display name." = "请输入显示名称。";
+"Enter a valid host name or IP address." = "请输入有效的主机名或 IP 地址。";
+"Enter a port between 1 and 65535." = "请输入 1 到 65535 之间的端口。";
+"Enter a valid user name." = "请输入有效的用户名。";
+"This key is protected by a passphrase. Enter it." = "这个密钥设有私钥密码，请输入。";
+"Enter the password for this server." = "请输入这台服务器的密码。";
+"The password or user name is wrong." = "密码或用户名不正确。";
+"This server does not accept passwords. Add the public key through your provider's web console instead." = "这台服务器不接受密码登录。请改为通过服务商的网页控制台添加公钥。";
+"The server did not accept this key. Install the public key on the server with its password." = "服务器没有接受这个密钥。请用服务器密码把公钥安装到服务器上。";
+"The server did not accept this key and does not allow passwords. Add the public key through your provider's web console, or choose a key that is already installed." = "服务器没有接受这个密钥，也不允许密码登录。请通过服务商的网页控制台添加公钥，或选择已经安装在服务器上的密钥。";
+"The public key is unknown because there is no .pub file next to this key." = "这个密钥旁边没有 .pub 文件，因此无法得知它的公钥。";
+
+/* SSH keys */
+"This is not an SSH private key." = "这不是 SSH 私钥。";
+"This is a public key. Choose the matching private key (the file without “.pub”)." = "这是公钥。请选择对应的私钥（没有“.pub”后缀的文件）。";
+"PuTTY keys (.ppk) are not supported. Export the key in OpenSSH format with PuTTYgen first." = "不支持 PuTTY 密钥（.ppk）。请先用 PuTTYgen 导出为 OpenSSH 格式。";
+"A key already exists at %@." = "%@ 已经有一个密钥。";
+"The key could not be created: %@" = "无法创建密钥：%@";
+"The public key for this private key could not be read." = "无法读取这个私钥对应的公钥。";
+"The passphrase for this key is incorrect." = "私钥密码不正确。";
+"The private key file %@ was not found." = "找不到私钥文件 %@。";
+"Security key" = "安全密钥";
+"Unknown type" = "未知类型";
+
+/* SSH connection */
+"No SSH password is saved for this server." = "这台服务器没有保存 SSH 密码。";
+"The server rejected the login." = "服务器拒绝了登录。";
+"The server rejected the login. It accepts: %@." = "服务器拒绝了登录。它接受的方式：%@。";
+"Other users can read %@, so SSH refuses to use it." = "其他用户可以读取 %@，因此 SSH 拒绝使用它。";
+"The server refused the connection. Check the SSH port." = "服务器拒绝了连接，请检查 SSH 端口。";
+"The host name could not be found." = "找不到这个主机名。";
+"The server could not be reached: %@" = "无法连接到服务器：%@";
+"The server closed the connection. It may be temporarily blocking this Mac after failed logins." = "服务器关闭了连接。可能是登录失败次数过多，暂时屏蔽了这台 Mac。";
+
+/* Connection status */
+"Not set up" = "未设置";
+"Not monitoring" = "未监控";
+"Connecting" = "正在连接";
+"Connected" = "已连接";
+"Reconnecting" = "正在重连";
+"Needs attention" = "需要处理";
+"Error" = "错误";
+"Finish setting up the connection" = "完成连接设置";
+"Verify the server's host key and choose how BWMonitor signs in. It takes a minute and only needs to be done once." = "验证服务器的主机密钥，并选择 BWMonitor 的登录方式。只需一分钟，而且只需设置一次。";
+"Set Up Connection…" = "设置连接…";
+"Connecting to %@…" = "正在连接 %@…";
+"The first sample takes a few seconds." = "首次采样需要几秒钟。";
+"Monitoring is off" = "监控未开启";
+"Start monitoring to collect live CPU, memory, disk and network data." = "开始监控后即可采集实时的 CPU、内存、磁盘和网络数据。";
+"Connection lost, retrying" = "连接中断，正在重试";
+"Could not read the server's data" = "无法读取服务器数据";
+"Monitoring paused" = "监控已暂停";
+"%@ BWMonitor stopped retrying so the server does not block this Mac for repeated failed logins." = "%@为避免服务器因多次登录失败而屏蔽这台 Mac，BWMonitor 已停止重试。";
+"This key is protected by a passphrase that is not saved. Enter it in the server settings." = "这个密钥设有私钥密码，但没有保存。请在服务器设置中输入。";
+"CPU History" = "CPU 历史";
+"Could not save history: %@" = "无法保存历史记录：%@";
+
+/* Terminal */
+"Open in Terminal" = "在“终端”中打开";
+"Open a shell on the selected server. Saved passwords and passphrases are used automatically." = "在所选服务器上打开 Shell。已保存的密码和私钥密码会自动使用。";
+"A full-screen program (such as vim, top or less) is running. It needs a full terminal: quit it with q or Control-C, or open the server in Terminal." = "正在运行全屏程序（例如 vim、top 或 less），需要完整的终端才能显示。可以按 q 或 Control-C 退出，或在“终端”中打开这台服务器。";
+"Disconnected" = "已断开";
+"Reconnect" = "重新连接";
+"Copy" = "拷贝";
+"Paste" = "粘贴";
+"Select All" = "全选";
+"Clear Scrollback" = "清除回滚";
+
+/* Settings */
+"Start monitoring when BWMonitor opens" = "打开 BWMonitor 时开始监控";
+"Server metrics" = "服务器指标";
+"CPU, memory, disk and network are read together over one SSH connection that stays open while monitoring." = "CPU、内存、磁盘和网络数据通过同一个 SSH 连接一起读取，监控期间该连接保持打开。";
+"API keys, passwords and key passphrases are stored in macOS Keychain." = "API 密钥、密码和私钥密码保存在 macOS 钥匙串中。";
+"Saved secrets go straight to ssh and are never typed into a terminal." = "已保存的凭据直接交给 ssh，绝不会输入到终端里。";
+"A key BWMonitor created for itself. Like the keys in ~/.ssh, only your user account can read it." = "这是 BWMonitor 为自己创建的密钥。和 ~/.ssh 中的密钥一样，只有你的用户账户可以读取。";
+"Not created yet. Choose “BWMonitor Key” when editing a server to create it." = "尚未创建。编辑服务器时选择“BWMonitor 密钥”即可创建。";

@@ -3,7 +3,6 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var state: AppState
     @AppStorage("appearance") private var appearance = "system"
-    @State private var showingAddServer = false
 
     var body: some View {
         NavigationSplitView {
@@ -46,8 +45,8 @@ struct RootView: View {
                     }
                 }
         }
-        .sheet(isPresented: $showingAddServer) {
-            ServerEditorView(server: nil)
+        .sheet(item: $state.editorRequest) { request in
+            ServerEditorView(server: request.server, state: state)
                 .environmentObject(state)
         }
         .preferredColorScheme(colorScheme)
@@ -64,7 +63,7 @@ struct RootView: View {
             EmptySelectionView(
                 title: LocalizedStringKey("Add your first VPS"),
                 message: LocalizedStringKey("Server credentials stay in your Mac Keychain."),
-                action: { showingAddServer = true }
+                action: { state.addServer() }
             )
         } else {
             switch state.selection {
@@ -83,7 +82,7 @@ struct RootView: View {
             case .processes:
                 ProcessesView()
             case .servers:
-                ServersView(showingAddServer: $showingAddServer)
+                ServersView()
             case .settings:
                 SettingsView()
             }
@@ -98,10 +97,6 @@ struct RootView: View {
             }
         }
         .labelsHidden()
-        .onChange(of: state.selectedServerID) { _, newValue in
-            state.stopMonitoring()
-            if let newValue { state.loadHistory(for: newValue) }
-        }
     }
 
     @ToolbarContentBuilder

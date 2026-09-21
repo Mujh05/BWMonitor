@@ -8,13 +8,18 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 if let server = state.selectedServer {
-                    ServerHero(server: server, metrics: state.selectedMetrics, traffic: state.selectedTraffic)
+                    ServerHero(
+                        server: server,
+                        metrics: state.selectedMetrics,
+                        traffic: state.selectedTraffic,
+                        isOnline: state.isOnline(server.id),
+                        sshConnected: state.selectedConnection.isConnected
+                    )
+                    ConnectionStatusCard(server: server)
 
                     if let metrics = state.selectedMetrics {
                         MetricsGrid(metrics: metrics)
                         NetworkStrip(metrics: metrics)
-                    } else {
-                        monitoringPlaceholder
                     }
 
                     if let traffic = state.selectedTraffic {
@@ -22,7 +27,7 @@ struct DashboardView: View {
                     }
 
                     if !state.history.isEmpty {
-                        HistoryOverview(records: state.history)
+                        HistoryOverview(records: state.history, range: state.historyRange)
                     }
                 }
             }
@@ -32,38 +37,31 @@ struct DashboardView: View {
         .navigationTitle("Overview")
         .background(Color(nsColor: .windowBackgroundColor))
     }
-
-    private var monitoringPlaceholder: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "waveform.path.ecg")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("No live SSH sample yet")
-                    .font(.headline)
-                Text("Verify the host key, then start monitoring or refresh once.")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 16)
-    }
 }
 
 private struct ServerHero: View {
     let server: Server
     let metrics: ServerMetrics?
     let traffic: BandwagonTraffic?
+    let isOnline: Bool?
+    let sshConnected: Bool
 
-    var isOnline: Bool { traffic?.serverOnline ?? (metrics != nil) }
+    private var statusColor: Color {
+        switch isOnline {
+        case true: .green
+        case false: .red
+        default: .secondary
+        }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     Circle()
-                        .fill(isOnline ? Color.green : Color.secondary)
+                        .fill(statusColor)
                         .frame(width: 10, height: 10)
-                        .shadow(color: isOnline ? .green.opacity(0.35) : .clear, radius: 5)
+                        .shadow(color: isOnline == true ? .green.opacity(0.35) : .clear, radius: 5)
                     Text(server.name)
                         .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 }
@@ -72,7 +70,7 @@ private struct ServerHero: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                 HStack(spacing: 18) {
-                    StatusLabel(text: "SSH", active: metrics != nil)
+                    StatusLabel(text: "SSH", active: sshConnected)
                     StatusLabel(text: "KiwiVM", active: traffic != nil)
                 }
                 .padding(.top, 4)
@@ -217,13 +215,10 @@ private struct TrafficSection: View {
     let records: [MetricRecord]
 
     private var forecast: TrafficForecast {
-        let daily: [UInt64]
-        if let first = records.first, let last = records.last, last.trafficUsed >= first.trafficUsed {
-            daily = [last.trafficUsed - first.trafficUsed]
-        } else {
-            daily = []
-        }
-        return TrafficForecaster.forecast(current: traffic, recentDailyUsage: daily)
+        TrafficForecaster.forecast(
+            current: traffic,
+            recentDailyUsage: TrafficForecaster.dailyUsage(samples: records.map { ($0.timestamp, $0.trafficUsed) })
+        )
     }
 
     var body: some View {
@@ -268,14 +263,19 @@ private struct TrafficSection: View {
 
 private struct HistoryOverview: View {
     let records: [MetricRecord]
+    let range: HistoryRange
 
     private var timeLabel: String { NSLocalizedString("Time", comment: "Chart axis") }
     private var cpuLabel: String { NSLocalizedString("CPU", comment: "Chart metric") }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Last 24 Hours")
-                .font(.title2.weight(.semibold))
+            HStack(alignment: .firstTextBaseline) {
+                Text("CPU History")
+                    .font(.title2.weight(.semibold))
+                Text(range.localizedTitle)
+                    .foregroundStyle(.secondary)
+            }
             Chart(records) { record in
                 LineMark(
                     x: .value(timeLabel, record.timestamp),
@@ -302,7 +302,147 @@ private struct HistoryOverview: View {
                 }
             }
             .frame(height: 190)
-            .accessibilityLabel("CPU history for the last 24 hours")
+            .accessibilityLabel("CPU History")
+        }
+    }
+}
+
+/// Explains why no live data is shown and offers the next step.
+private struct ConnectionStatusCard: View {
+    @EnvironmentObject private var state: AppState
+    let server: Server
+
+    var body: some View {
+        if let content {
+            HStack(alignment: .top, spacing: 14) {
+                Group {
+                    if content.showsProgress {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: content.symbol)
+                            .foregroundStyle(content.tint)
+                    }
+                }
+                .font(.title2)
+                .frame(width: 28)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(content.title)
+                        .font(.headline)
+                    Text(content.message)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack {
+                    ForEach(content.actions, id: \.title) { action in
+                        if action.primary {
+                            Button(action.title, action: action.run)
+                                .buttonStyle(.borderedProminent)
+                        } else {
+                            Button(action.title, action: action.run)
+                        }
+                    }
+                }
+                .fixedSize()
+            }
+            .padding(18)
+            .background(content.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    private struct Action {
+        let title: String
+        var primary = false
+        let run: () -> Void
+    }
+
+    private struct Content {
+        var symbol: String
+        var tint: Color
+        var title: String
+        var message: String
+        var showsProgress = false
+        var actions: [Action] = []
+    }
+
+    private var content: Content? {
+        if state.isDemoMode { return nil }
+        let edit = Action(title: NSLocalizedString("Edit Server…", comment: "Dashboard action")) { state.edit(server) }
+        let retry = Action(title: NSLocalizedString("Try Again", comment: "Dashboard action"), primary: true) {
+            state.stopMonitoring()
+            state.beginMonitoring()
+        }
+        guard state.ssh.isTrusted(server) else {
+            return Content(
+                symbol: "lock.shield",
+                tint: .accentColor,
+                title: NSLocalizedString("Finish setting up the connection", comment: "Dashboard status"),
+                message: NSLocalizedString(
+                    "Verify the server's host key and choose how BWMonitor signs in. It takes a minute and only needs to be done once.",
+                    comment: "Dashboard status"
+                ),
+                actions: [Action(title: NSLocalizedString("Set Up Connection…", comment: "Dashboard action"), primary: true) {
+                    state.edit(server)
+                }]
+            )
+        }
+        switch state.selectedConnection {
+        case .connected:
+            return nil
+        case .connecting:
+            guard state.selectedMetrics == nil else { return nil }
+            return Content(
+                symbol: "",
+                tint: .secondary,
+                title: String(format: NSLocalizedString("Connecting to %@…", comment: "Dashboard status"), server.name),
+                message: NSLocalizedString("The first sample takes a few seconds.", comment: "Dashboard status"),
+                showsProgress: true
+            )
+        case .idle:
+            guard state.selectedMetrics == nil else { return nil }
+            return Content(
+                symbol: "pause.circle",
+                tint: .secondary,
+                title: NSLocalizedString("Monitoring is off", comment: "Dashboard status"),
+                message: NSLocalizedString("Start monitoring to collect live CPU, memory, disk and network data.", comment: "Dashboard status"),
+                actions: [Action(title: NSLocalizedString("Start Monitoring", comment: "Dashboard action"), primary: true) {
+                    state.beginMonitoring()
+                }]
+            )
+        case let .retrying(message):
+            return Content(
+                symbol: "arrow.clockwise.circle",
+                tint: .orange,
+                title: NSLocalizedString("Connection lost, retrying", comment: "Dashboard status"),
+                message: message,
+                actions: [retry]
+            )
+        case let .failed(message):
+            return Content(
+                symbol: "exclamationmark.triangle.fill",
+                tint: .orange,
+                title: NSLocalizedString("Could not read the server's data", comment: "Dashboard status"),
+                message: message,
+                actions: [retry]
+            )
+        case let .needsAttention(error):
+            let message = state.explanation(for: error, server: server)
+            var actions = [edit, retry]
+            if case .keyPermissionsTooOpen = error {
+                actions.insert(Action(title: NSLocalizedString("Fix Key Permissions", comment: "Dashboard action"), primary: true) {
+                    try? SSHKeyInspector.restrictPermissions(path: server.privateKeyPath)
+                    state.beginMonitoring()
+                }, at: 0)
+                actions.removeLast()
+            }
+            return Content(
+                symbol: "exclamationmark.triangle.fill",
+                tint: .red,
+                title: NSLocalizedString("Monitoring paused", comment: "Dashboard status"),
+                message: message,
+                actions: actions
+            )
         }
     }
 }

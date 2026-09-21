@@ -66,13 +66,24 @@ public struct KiwiVMClient: KiwiVMServing, Sendable {
               let reset = payload.dataNextReset else {
             throw KiwiVMError.invalidResponse
         }
+        // KiwiVM documents that both counters must be multiplied by
+        // monthly_data_multiplier; it is 1 for most locations.
+        let multiplier = max(payload.monthlyDataMultiplier ?? 1, 0)
         return BandwagonTraffic(
-            used: used,
-            limit: limit,
+            used: UInt64((Double(used) * multiplier).rounded()),
+            limit: UInt64((Double(limit) * multiplier).rounded()),
             nextReset: Date(timeIntervalSince1970: TimeInterval(reset)),
-            serverOnline: payload.status?.lowercased() == "online"
-                || payload.vmStatus?.lowercased() == "running"
+            serverOnline: Self.powerState(payload)
         )
+    }
+
+    private static func powerState(_ payload: Response) -> Bool? {
+        if payload.suspended == true { return false }
+        for status in [payload.status, payload.vmStatus].compactMap({ $0?.lowercased() }) {
+            if ["running", "online", "started"].contains(status) { return true }
+            if ["stopped", "offline", "suspended"].contains(status) { return false }
+        }
+        return nil
     }
 }
 
@@ -83,8 +94,10 @@ private extension KiwiVMClient {
         let dataCounter: UInt64?
         let planMonthlyData: UInt64?
         let dataNextReset: UInt64?
+        let monthlyDataMultiplier: Double?
         let status: String?
         let vmStatus: String?
+        let suspended: Bool?
 
         enum CodingKeys: String, CodingKey {
             case error
@@ -92,8 +105,10 @@ private extension KiwiVMClient {
             case dataCounter = "data_counter"
             case planMonthlyData = "plan_monthly_data"
             case dataNextReset = "data_next_reset"
+            case monthlyDataMultiplier = "monthly_data_multiplier"
             case status = "ve_status"
             case vmStatus = "vm_status"
+            case suspended
         }
 
         init(from decoder: Decoder) throws {
@@ -103,8 +118,11 @@ private extension KiwiVMClient {
             dataCounter = container.decodeLossyUInt64(forKey: .dataCounter)
             planMonthlyData = container.decodeLossyUInt64(forKey: .planMonthlyData)
             dataNextReset = container.decodeLossyUInt64(forKey: .dataNextReset)
+            monthlyDataMultiplier = container.decodeLossyDouble(forKey: .monthlyDataMultiplier)
             status = try? container.decode(String.self, forKey: .status)
             vmStatus = try? container.decode(String.self, forKey: .vmStatus)
+            suspended = (try? container.decode(Bool.self, forKey: .suspended))
+                ?? container.decodeLossyInt(forKey: .suspended).map { $0 != 0 }
         }
     }
 }
@@ -113,6 +131,12 @@ private extension KeyedDecodingContainer {
     func decodeLossyUInt64(forKey key: Key) -> UInt64? {
         if let number = try? decode(UInt64.self, forKey: key) { return number }
         if let text = try? decode(String.self, forKey: key) { return UInt64(text) }
+        return nil
+    }
+
+    func decodeLossyDouble(forKey key: Key) -> Double? {
+        if let number = try? decode(Double.self, forKey: key) { return number }
+        if let text = try? decode(String.self, forKey: key) { return Double(text) }
         return nil
     }
 

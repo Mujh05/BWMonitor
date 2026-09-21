@@ -12,9 +12,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public var uploadRate: Double
     public var updatedAt: Date
 
-    public init(server: Server, metrics: ServerMetrics?, traffic: BandwagonTraffic?) {
+    public init(server: Server, metrics: ServerMetrics?, traffic: BandwagonTraffic?, isOnline: Bool? = nil) {
         serverName = server.name
-        isOnline = traffic?.serverOnline ?? (metrics != nil)
+        self.isOnline = isOnline ?? traffic?.serverOnline ?? (metrics != nil)
         cpuUsage = metrics?.cpuUsage ?? 0
         memoryUsage = metrics?.memoryPercentage ?? 0
         diskUsage = metrics?.diskPercentage ?? 0
@@ -31,7 +31,10 @@ public enum WidgetSnapshotStore {
     private static let key = "latestWidgetSnapshot"
 
     public static func save(_ snapshot: WidgetSnapshot) throws {
-        guard let defaults = UserDefaults(suiteName: appGroup) else { return }
+        // Only the release app feeds the widget; a renamed test copy must
+        // not overwrite what the real app shows.
+        guard Bundle.main.bundleIdentifier == "com.mujh.BWMonitor",
+              let defaults = UserDefaults(suiteName: appGroup) else { return }
         defaults.set(try JSONEncoder().encode(snapshot), forKey: key)
     }
 
