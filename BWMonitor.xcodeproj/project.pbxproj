@@ -1,0 +1,334 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000000000000000000001 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* Models.swift */; };
+		B10000000000000000000002 /* KiwiVMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* KiwiVMClient.swift */; };
+		B10000000000000000000003 /* LinuxMetricsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* LinuxMetricsParser.swift */; };
+		B10000000000000000000004 /* MonitoringService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000004 /* MonitoringService.swift */; };
+		B10000000000000000000005 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000005 /* KeychainStore.swift */; };
+		B10000000000000000000006 /* ServerRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000006 /* ServerRepository.swift */; };
+		B10000000000000000000007 /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000007 /* HistoryStore.swift */; };
+		B10000000000000000000008 /* SSHManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000008 /* SSHManager.swift */; };
+		B10000000000000000000009 /* AlertEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000009 /* AlertEvaluator.swift */; };
+		B1000000000000000000000A /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000A /* WidgetSnapshot.swift */; };
+		B1000000000000000000000B /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000B /* AppState.swift */; };
+		B1000000000000000000000C /* BWMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* BWMonitorApp.swift */; };
+		B1000000000000000000000D /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000D /* SharedViews.swift */; };
+		B1000000000000000000000E /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* RootView.swift */; };
+		B1000000000000000000000F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000F /* DashboardView.swift */; };
+		B10000000000000000000010 /* MonitoringViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000010 /* MonitoringViews.swift */; };
+		B10000000000000000000011 /* ServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000011 /* ServersView.swift */; };
+		B10000000000000000000012 /* TerminalSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000012 /* TerminalSession.swift */; };
+		B10000000000000000000013 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000013 /* TerminalView.swift */; };
+		B10000000000000000000014 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000014 /* SettingsView.swift */; };
+		B10000000000000000000015 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000015 /* MenuBarView.swift */; };
+		B10000000000000000000016 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* Models.swift */; };
+		B10000000000000000000017 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000A /* WidgetSnapshot.swift */; };
+		B10000000000000000000018 /* BWMonitorWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000018 /* BWMonitorWidget.swift */; };
+		B10000000000000000000019 /* BWMonitorWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F1000000000000000000001C /* BWMonitorWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B1000000000000000000001A /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = V10000000000000000000001 /* Localizable.strings */; };
+		B1000000000000000000001B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = V10000000000000000000001 /* Localizable.strings */; };
+		B1000000000000000000001C /* BWMonitor.icns in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000001E /* BWMonitor.icns */; };
+		B1000000000000000000001D /* AppUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000001F /* AppUpdate.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D10000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C10000000000000000000003;
+			remoteInfo = BWMonitorWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C10000000000000000000009 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (B10000000000000000000019 /* BWMonitorWidget.appex in Embed Foundation Extensions */, );
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		F10000000000000000000001 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Models.swift; sourceTree = "<group>"; };
+		F10000000000000000000002 /* KiwiVMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API/KiwiVM/KiwiVMClient.swift; sourceTree = "<group>"; };
+		F10000000000000000000003 /* LinuxMetricsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Monitoring/LinuxMetricsParser.swift; sourceTree = "<group>"; };
+		F10000000000000000000004 /* MonitoringService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Monitoring/MonitoringService.swift; sourceTree = "<group>"; };
+		F10000000000000000000005 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain/KeychainStore.swift; sourceTree = "<group>"; };
+		F10000000000000000000006 /* ServerRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database/ServerRepository.swift; sourceTree = "<group>"; };
+		F10000000000000000000007 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database/HistoryStore.swift; sourceTree = "<group>"; };
+		F10000000000000000000008 /* SSHManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSH/SSHManager.swift; sourceTree = "<group>"; };
+		F10000000000000000000009 /* AlertEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications/AlertEvaluator.swift; sourceTree = "<group>"; };
+		F1000000000000000000000A /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WidgetSnapshot.swift; sourceTree = "<group>"; };
+		F1000000000000000000000B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppState.swift; sourceTree = "<group>"; };
+		F1000000000000000000000C /* BWMonitorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/BWMonitorApp.swift; sourceTree = "<group>"; };
+		F1000000000000000000000D /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Components/SharedViews.swift; sourceTree = "<group>"; };
+		F1000000000000000000000E /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/RootView.swift; sourceTree = "<group>"; };
+		F1000000000000000000000F /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Dashboard/DashboardView.swift; sourceTree = "<group>"; };
+		F10000000000000000000010 /* MonitoringViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Monitoring/MonitoringViews.swift; sourceTree = "<group>"; };
+		F10000000000000000000011 /* ServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Servers/ServersView.swift; sourceTree = "<group>"; };
+		F10000000000000000000012 /* TerminalSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Terminal/TerminalSession.swift; sourceTree = "<group>"; };
+		F10000000000000000000013 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Terminal/TerminalView.swift; sourceTree = "<group>"; };
+		F10000000000000000000014 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Settings/SettingsView.swift; sourceTree = "<group>"; };
+		F10000000000000000000015 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/MenuBar/MenuBarView.swift; sourceTree = "<group>"; };
+		F10000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Resources/Info.plist; sourceTree = "<group>"; };
+		F10000000000000000000017 /* BWMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Resources/BWMonitor.entitlements; sourceTree = "<group>"; };
+		F10000000000000000000018 /* BWMonitorWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BWMonitorWidget.swift; sourceTree = "<group>"; };
+		F10000000000000000000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F1000000000000000000001A /* BWMonitorWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BWMonitorWidget.entitlements; sourceTree = "<group>"; };
+		F1000000000000000000001B /* BWMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BWMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1000000000000000000001C /* BWMonitorWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BWMonitorWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1000000000000000000001D /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		F1000000000000000000001E /* BWMonitor.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Resources/BWMonitor.icns; sourceTree = "<group>"; };
+		F1000000000000000000001F /* AppUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Update/AppUpdate.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C10000000000000000000004 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000007 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C1000000000000000000000A = {
+			isa = PBXGroup;
+			children = (
+				C1000000000000000000000B /* BWMonitorApp */,
+				C1000000000000000000000C /* BWMonitorCore */,
+				C1000000000000000000000D /* BWMonitorWidget */,
+				C1000000000000000000000F /* Localization */,
+				C1000000000000000000000E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000B /* BWMonitorApp */ = {
+			isa = PBXGroup;
+			children = (
+				F1000000000000000000000B, F1000000000000000000000C, F1000000000000000000000D,
+				F1000000000000000000000E, F1000000000000000000000F, F10000000000000000000010,
+				F10000000000000000000011, F10000000000000000000012, F10000000000000000000013,
+				F10000000000000000000014, F10000000000000000000015, F10000000000000000000016,
+				F10000000000000000000017, F1000000000000000000001E,
+			);
+			path = BWMonitorApp;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000C /* BWMonitorCore */ = {
+			isa = PBXGroup;
+			children = (
+				F10000000000000000000001, F10000000000000000000002, F10000000000000000000003,
+				F10000000000000000000004, F10000000000000000000005, F10000000000000000000006,
+				F10000000000000000000007, F10000000000000000000008, F10000000000000000000009,
+				F1000000000000000000000A, F1000000000000000000001F,
+			);
+			path = BWMonitorCore;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000D /* BWMonitorWidget */ = {
+			isa = PBXGroup;
+			children = (F10000000000000000000018, F10000000000000000000019, F1000000000000000000001A, );
+			path = BWMonitorWidget;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000E /* Products */ = {
+			isa = PBXGroup;
+			children = (F1000000000000000000001B, F1000000000000000000001C, );
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C1000000000000000000000F /* Localization */ = {
+			isa = PBXGroup;
+			children = (V10000000000000000000001 /* Localizable.strings */, );
+			path = Localization;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C10000000000000000000002 /* BWMonitor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000011;
+			buildPhases = (C10000000000000000000005, C10000000000000000000004, C10000000000000000000006, C10000000000000000000009, );
+			buildRules = ();
+			dependencies = (D10000000000000000000002, );
+			name = BWMonitor;
+			productName = BWMonitor;
+			productReference = F1000000000000000000001B;
+			productType = "com.apple.product-type.application";
+		};
+		C10000000000000000000003 /* BWMonitorWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000012;
+			buildPhases = (C10000000000000000000008, C10000000000000000000007, C10000000000000000000013, );
+			buildRules = ();
+			dependencies = ();
+			name = BWMonitorWidget;
+			productName = BWMonitorWidget;
+			productReference = F1000000000000000000001C;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					C10000000000000000000002 = {CreatedOnToolsVersion = 27.0; };
+					C10000000000000000000003 = {CreatedOnToolsVersion = 27.0; };
+				};
+			};
+			buildConfigurationList = C10000000000000000000010;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base, "zh-Hans", );
+			mainGroup = C1000000000000000000000A;
+			productRefGroup = C1000000000000000000000E;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (C10000000000000000000002, C10000000000000000000003, );
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C10000000000000000000006 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (B1000000000000000000001A /* Localizable.strings in Resources */, B1000000000000000000001C /* BWMonitor.icns in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000013 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (B1000000000000000000001B /* Localizable.strings in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		V10000000000000000000001 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (F1000000000000000000001D /* zh-Hans */, );
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000001, B10000000000000000000002, B10000000000000000000003,
+				B10000000000000000000004, B10000000000000000000005, B10000000000000000000006,
+				B10000000000000000000007, B10000000000000000000008, B10000000000000000000009,
+				B1000000000000000000000A, B1000000000000000000000B, B1000000000000000000000C,
+				B1000000000000000000000D, B1000000000000000000000E, B1000000000000000000000F,
+				B10000000000000000000010, B10000000000000000000011, B10000000000000000000012,
+				B10000000000000000000013, B10000000000000000000014, B10000000000000000000015,
+				B1000000000000000000001D,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C10000000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (B10000000000000000000016, B10000000000000000000017, B10000000000000000000018, );
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D10000000000000000000002 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = C10000000000000000000003 /* BWMonitorWidget */; targetProxy = D10000000000000000000001 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		E10000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; SDKROOT = macosx; SWIFT_VERSION = 6.0; }; name = Debug; };
+		E10000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 6.0; }; name = Release; };
+		E10000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BWMonitorApp/Resources/BWMonitor.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BWMonitorApp/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+			};
+			name = Debug;
+		};
+		E10000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = BWMonitorApp/Resources/BWMonitor.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BWMonitorApp/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+			};
+			name = Release;
+		};
+		E10000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = BWMonitorWidget/BWMonitorWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BWMonitorWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+			};
+			name = Debug;
+		};
+		E10000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = BWMonitorWidget/BWMonitorWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BWMonitorWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C10000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (E10000000000000000000001, E10000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C10000000000000000000011 = {isa = XCConfigurationList; buildConfigurations = (E10000000000000000000003, E10000000000000000000004, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C10000000000000000000012 = {isa = XCConfigurationList; buildConfigurations = (E10000000000000000000005, E10000000000000000000006, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = C10000000000000000000001 /* Project object */;
+}
