@@ -44,6 +44,7 @@ struct BWMonitorApp: App {
     /// stale numbers never sit in the menu bar.
     private var menuBarTitle: String? {
         guard state.selectedConnection.isConnected, let metrics = state.selectedMetrics else { return nil }
-        return "\(Int(metrics.cpuUsage * 100))% · \(Int(metrics.memoryPercentage * 100))%"
+        // Same rounding as the dashboard, so both show the same numbers.
+        return "\(metrics.cpuUsage.formatted(BWFormat.percentage)) · \(metrics.memoryPercentage.formatted(BWFormat.percentage))"
     }
 }
