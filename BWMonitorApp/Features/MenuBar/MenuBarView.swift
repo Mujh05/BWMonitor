@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject private var state: AppState
+    @EnvironmentObject private var updater: SoftwareUpdater
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -50,6 +51,10 @@ struct MenuBarView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            if let release = updater.reminder {
+                UpdateReminder(release: release)
             }
 
             Divider()

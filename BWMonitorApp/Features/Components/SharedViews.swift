@@ -77,6 +77,71 @@ struct EmptySelectionView: View {
     }
 }
 
+/// Offers a new version in the sidebar and the menu bar window.
+struct UpdateReminder: View {
+    @EnvironmentObject private var updater: SoftwareUpdater
+    let release: ReleaseInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("Update Available")
+                    .font(.callout.weight(.semibold))
+                Spacer(minLength: 0)
+                if !updater.status.isBusy {
+                    Button {
+                        updater.dismissReminder()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Later")
+                }
+            }
+            HStack(spacing: 4) {
+                Text(verbatim: release.version)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Link("Release Notes", destination: release.pageURL)
+            }
+            .font(.caption)
+            switch updater.status {
+            case .downloading:
+                progress("Downloading…")
+            case .installing:
+                progress("Installing…")
+            default:
+                Button {
+                    updater.install()
+                } label: {
+                    Text("Update Now")
+                        .frame(maxWidth: .infinity)
+                }
+                .controlSize(.small)
+            }
+            if let message = updater.message {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(6)
+                    .help(message)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func progress(_ title: LocalizedStringKey) -> some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text(title).font(.caption)
+        }
+    }
+}
+
 struct ErrorBanner: View {
     let message: String
     let dismiss: () -> Void

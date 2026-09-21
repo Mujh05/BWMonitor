@@ -22,7 +22,7 @@ Linux 指标。
 - 菜单栏状态、WidgetKit 小组件、通知与登录启动
 - API 密钥、密码、私钥密码只存 macOS 钥匙串
 - 中英文界面，跟随 macOS 应用语言设置
-- GitHub Releases 更新通道
+- 从 GitHub Releases 自动更新，一键完成
 
 ### 连接服务器
 
@@ -62,8 +62,15 @@ BWMonitor 自己创建的密钥保存在
 
 ### 更新
 
-应用启动时每周自动检查一次 GitHub Releases（静默，无更新不打扰），
-也可手动前往**设置 → 关于 → 软件更新**检查。
+BWMonitor 每天在后台检查一次 GitHub Releases，没有新版本时不打扰。有新版本时，
+侧边栏和菜单栏窗口会出现提示，点“立即更新”即可：BWMonitor 会下载安装包，
+核对更新说明里的 SHA-256 和签名，原地替换自己，然后重新打开，服务器和设置
+都保持不变。也可以在菜单 **BWMonitor → 检查更新…** 或
+**设置 → 关于 → 软件更新**里手动检查。
+
+1.2 起才能自动更新；1.1 及更早的版本需要手动安装一次 1.2。
+如果 BWMonitor 所在位置无法替换（比如直接从安装包里运行），会改为打开新版本的
+安装包，把它拖进“应用程序”即可。
 
 ### 构建
 
@@ -122,7 +129,7 @@ Project home: https://github.com/Mujh05/BWMonitor
 - Menu bar status, WidgetKit extension, notifications, and launch at login
 - Keychain storage for API keys, passwords, and private-key passphrases
 - English and Simplified Chinese UI that follows the macOS app language
-- GitHub Releases update channel
+- One-click self-update from GitHub Releases
 
 ### Connecting a server
 
@@ -168,9 +175,17 @@ widget, right-click the desktop → Edit Widgets → add BWMonitor.
 
 ### Updates
 
-BWMonitor checks GitHub Releases automatically at launch (at most once a week,
-silently unless an update is found), or manually from
-**Settings > About > Software Update**.
+BWMonitor checks GitHub Releases once a day in the background and stays quiet
+unless there is a new version. Then a reminder appears in the sidebar and the
+menu bar window; click Update Now and BWMonitor downloads the installer, checks
+its SHA-256 from the release notes and its signature, replaces itself in place,
+and reopens, keeping your servers and settings. You can also check from
+**BWMonitor > Check for Updates…** or **Settings > About > Software Update**.
+
+Automatic updates start with 1.2; install 1.2 by hand once if you have 1.1 or
+earlier. If BWMonitor cannot be replaced where it is (for example when it runs
+from the installer), the new installer opens instead; drag BWMonitor into
+Applications.
 
 ### Build
 
