@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var state: AppState
+    @EnvironmentObject private var updater: SoftwareUpdater
     @AppStorage("appearance") private var appearance = "system"
 
     var body: some View {
@@ -30,9 +31,14 @@ struct RootView: View {
             }
             .navigationTitle("BWMonitor")
             .safeAreaInset(edge: .bottom) {
-                serverPicker
-                    .padding(10)
-                    .background(.bar)
+                VStack(spacing: 10) {
+                    if let release = updater.reminder {
+                        UpdateReminder(release: release)
+                    }
+                    serverPicker
+                }
+                .padding(10)
+                .background(.bar)
             }
         } detail: {
             detail

@@ -7,11 +7,17 @@ struct BWMonitorApp: App {
         WindowGroup("BWMonitor", id: "dashboard") {
             RootView()
                 .environmentObject(state)
+                .environmentObject(state.updater)
                 .frame(minWidth: 980, minHeight: 680)
-                .task { await state.checkForUpdates() }
         }
         .defaultSize(width: 1180, height: 780)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    Task { await state.updater.checkFromMenu() }
+                }
+                .disabled(state.isDemoMode)
+            }
             CommandGroup(after: .sidebar) {
                 Button("Refresh") { Task { await state.refreshAll() } }
                     .keyboardShortcut("r", modifiers: .command)
@@ -21,6 +27,7 @@ struct BWMonitorApp: App {
         MenuBarExtra {
             MenuBarView()
                 .environmentObject(state)
+                .environmentObject(state.updater)
         } label: {
             if let title = menuBarTitle {
                 HStack(spacing: 4) {
@@ -36,6 +43,7 @@ struct BWMonitorApp: App {
         Settings {
             SettingsView()
                 .environmentObject(state)
+                .environmentObject(state.updater)
                 .frame(width: 620, height: 500)
         }
     }

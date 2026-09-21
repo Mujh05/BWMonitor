@@ -171,37 +171,7 @@ struct SettingsView: View {
                 Text("Architecture")
             }
         }
-        Section("Software Update") {
-            switch state.updateStatus {
-            case .idle:
-                Button("Check for Updates") {
-                    Task { await state.checkForUpdates(userInitiated: true) }
-                }
-            case .checking:
-                Label("Checking…", systemImage: "arrow.triangle.2.circlepath")
-            case .upToDate:
-                Label(
-                    String(format: NSLocalizedString("Up to date (%@)", comment: "Update status"), state.appVersion),
-                    systemImage: "checkmark.circle.fill"
-                )
-                .foregroundStyle(.green)
-            case .available(let version, let url):
-                Label(
-                    String(format: NSLocalizedString("New version available: %@", comment: "Update status"), version),
-                    systemImage: "arrow.down.circle.fill"
-                )
-                .foregroundStyle(.orange)
-                Link("Download", destination: url)
-            case .failed(let message):
-                Text(
-                    String(format: NSLocalizedString("Update check failed: %@", comment: "Update status"), message)
-                )
-                .foregroundStyle(.secondary)
-                Button("Check for Updates") {
-                    Task { await state.checkForUpdates(userInitiated: true) }
-                }
-            }
-        }
+        SoftwareUpdateSection()
     }
 
     private func intervalRow(
@@ -232,6 +202,77 @@ struct SettingsView: View {
             Text(value.wrappedValue, format: BWFormat.percentage)
                 .monospacedDigit()
                 .frame(width: 42, alignment: .trailing)
+        }
+    }
+}
+
+private struct SoftwareUpdateSection: View {
+    @EnvironmentObject private var updater: SoftwareUpdater
+
+    var body: some View {
+        Section {
+            Toggle("Check for updates automatically", isOn: $updater.automaticChecks)
+            status
+            if let message = updater.message {
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        } header: {
+            Text("Software Update")
+        } footer: {
+            Text("New versions come from GitHub Releases. BWMonitor checks the download, replaces itself, and reopens; your servers and settings stay as they are.")
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        switch updater.status {
+        case .idle:
+            checkButton
+        case .upToDate:
+            HStack {
+                Label(
+                    String(format: NSLocalizedString("Up to date (%@)", comment: "Update status"), updater.currentVersion),
+                    systemImage: "checkmark.circle.fill"
+                )
+                .foregroundStyle(.green)
+                Spacer()
+                checkButton
+            }
+        case .checking:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Checking…")
+            }
+        case let .available(release):
+            HStack {
+                Label(
+                    String(format: NSLocalizedString("New version available: %@", comment: "Update status"), release.version),
+                    systemImage: "arrow.down.circle.fill"
+                )
+                .foregroundStyle(.orange)
+                Spacer()
+                Link("Release Notes", destination: release.pageURL)
+                Button("Update Now") { updater.install() }
+                    .buttonStyle(.borderedProminent)
+            }
+        case let .downloading(release):
+            progress(String(format: NSLocalizedString("Downloading %@…", comment: "Update status"), release.version))
+        case let .installing(release):
+            progress(String(format: NSLocalizedString("Installing %@…", comment: "Update status"), release.version))
+        }
+    }
+
+    private var checkButton: some View {
+        Button("Check for Updates") {
+            Task { await updater.check(userInitiated: true) }
+        }
+    }
+
+    private func progress(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(title)
         }
     }
 }

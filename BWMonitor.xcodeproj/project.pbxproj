@@ -41,6 +41,8 @@
 		B10000000000000000000021 /* SSHKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000023 /* SSHKeys.swift */; };
 		B10000000000000000000022 /* TerminalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000024 /* TerminalBuffer.swift */; };
 		B10000000000000000000023 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000025 /* Main.swift */; };
+		B10000000000000000000027 /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000029 /* UpdateInstaller.swift */; };
+		B10000000000000000000028 /* SoftwareUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002A /* SoftwareUpdater.swift */; };
 		B10000000000000000000024 /* ServerEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000026 /* ServerEditorModel.swift */; };
 		B10000000000000000000025 /* ServerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000027 /* ServerEditorView.swift */; };
 		B10000000000000000000026 /* TerminalTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000028 /* TerminalTextView.swift */; };
@@ -106,6 +108,8 @@
 		F10000000000000000000023 /* SSHKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSH/SSHKeys.swift; sourceTree = "<group>"; };
 		F10000000000000000000024 /* TerminalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terminal/TerminalBuffer.swift; sourceTree = "<group>"; };
 		F10000000000000000000025 /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Main.swift; sourceTree = "<group>"; };
+		F10000000000000000000029 /* UpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Update/UpdateInstaller.swift; sourceTree = "<group>"; };
+		F1000000000000000000002A /* SoftwareUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/SoftwareUpdater.swift; sourceTree = "<group>"; };
 		F10000000000000000000026 /* ServerEditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Servers/ServerEditorModel.swift; sourceTree = "<group>"; };
 		F10000000000000000000027 /* ServerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Servers/ServerEditorView.swift; sourceTree = "<group>"; };
 		F10000000000000000000028 /* TerminalTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Terminal/TerminalTextView.swift; sourceTree = "<group>"; };
@@ -136,7 +140,7 @@
 				F10000000000000000000011, F10000000000000000000012, F10000000000000000000013,
 				F10000000000000000000014, F10000000000000000000015, F10000000000000000000016,
 				F10000000000000000000017, F1000000000000000000001E,
-				F10000000000000000000025, F10000000000000000000026, F10000000000000000000027, F10000000000000000000028,
+				F10000000000000000000025, F10000000000000000000026, F10000000000000000000027, F10000000000000000000028, F1000000000000000000002A,
 			);
 			path = BWMonitorApp;
 			sourceTree = "<group>";
@@ -147,7 +151,7 @@
 				F10000000000000000000001, F10000000000000000000002, F10000000000000000000003,
 				F10000000000000000000004, F10000000000000000000005, F10000000000000000000006,
 				F10000000000000000000007, F10000000000000000000008, F10000000000000000000009,
-				F1000000000000000000000A, F1000000000000000000001F,
+				F1000000000000000000000A, F1000000000000000000001F, F10000000000000000000029,
 				F10000000000000000000020, F10000000000000000000021, F10000000000000000000022, F10000000000000000000023, F10000000000000000000024,
 			);
 			path = BWMonitorCore;
@@ -250,7 +254,7 @@
 				B10000000000000000000010, B10000000000000000000011, B10000000000000000000012,
 				B10000000000000000000013, B10000000000000000000014, B10000000000000000000015,
 				B1000000000000000000001D,
-				B1000000000000000000001E, B1000000000000000000001F, B10000000000000000000020, B10000000000000000000021, B10000000000000000000022, B10000000000000000000023, B10000000000000000000024, B10000000000000000000025, B10000000000000000000026,
+				B1000000000000000000001E, B1000000000000000000001F, B10000000000000000000020, B10000000000000000000021, B10000000000000000000022, B10000000000000000000023, B10000000000000000000024, B10000000000000000000025, B10000000000000000000026, B10000000000000000000027, B10000000000000000000028,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,13 +278,13 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BWMonitorApp/Resources/BWMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorApp/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -292,13 +296,13 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BWMonitorApp/Resources/BWMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorApp/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -311,12 +315,12 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = BWMonitorWidget/BWMonitorWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor.Widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -330,12 +334,12 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = BWMonitorWidget/BWMonitorWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 6UBGLWDQ4P;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor.Widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

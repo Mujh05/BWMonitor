@@ -78,14 +78,6 @@ struct RemoteProcessInfo: Identifiable, Equatable {
     let memory: Double
 }
 
-enum UpdateStatus: Equatable {
-    case idle
-    case checking
-    case upToDate
-    case available(version: String, url: URL)
-    case failed(message: String)
-}
-
 /// SSH state of one server, shown on the dashboard and in the server list.
 enum ConnectionState: Equatable {
     case idle
@@ -130,11 +122,11 @@ final class AppState: ObservableObject {
     @Published var monitoringActive = false
     @Published var lastError: String?
     @Published var lastRefresh: Date?
-    @Published var updateStatus: UpdateStatus = .idle
     @Published var editorRequest: ServerEditorRequest?
     @Published var terminalSessions: [TerminalSession] = []
     @Published var selectedTerminalID: UUID?
 
+    let updater = SoftwareUpdater()
     let keychain = KeychainStore()
     let ssh: SSHManager
     private let askpassServer: AskpassServer?
@@ -197,6 +189,7 @@ final class AppState: ObservableObject {
         } else {
             pruneHistory()
             Task { await loadServers() }
+            updater.scheduleChecks()
             terminationObserver = NotificationCenter.default.addObserver(
                 forName: NSApplication.willTerminateNotification,
                 object: nil,
@@ -209,28 +202,6 @@ final class AppState: ObservableObject {
 
     var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-    }
-
-    /// Checks GitHub Releases for a newer build. Automatic checks are
-    /// throttled to once a week and stay silent unless an update is found.
-    func checkForUpdates(userInitiated: Bool = false) async {
-        if updateStatus == .checking { return }
-        if !userInitiated {
-            let last = UserDefaults.standard.double(forKey: "lastUpdateCheck")
-            if last > 0 && Date.now.timeIntervalSince1970 - last < 7 * 24 * 3_600 { return }
-        }
-        updateStatus = .checking
-        do {
-            let release = try await AppUpdateChecker().latestRelease()
-            UserDefaults.standard.set(Date.now.timeIntervalSince1970, forKey: "lastUpdateCheck")
-            if AppUpdate.isNewer(latest: release.tagName, than: appVersion) {
-                updateStatus = .available(version: release.tagName, url: release.htmlURL ?? AppUpdate.releasesPageURL)
-            } else {
-                updateStatus = .upToDate
-            }
-        } catch {
-            updateStatus = userInitiated ? .failed(message: error.localizedDescription) : .idle
-        }
     }
 
     // MARK: Servers

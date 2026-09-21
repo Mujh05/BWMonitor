@@ -9,6 +9,9 @@ enum BWMonitorMain {
         if let status = SSHAskpass.runIfRequested() {
             exit(status)
         }
+        if CommandLine.arguments.contains("--debug-self-update") {
+            SoftwareUpdater.runDebugSelfUpdate()
+        }
         BWMonitorApp.main()
     }
 }
