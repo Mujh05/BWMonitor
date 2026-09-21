@@ -1,6 +1,5 @@
 import SwiftUI
 
-@main
 struct BWMonitorApp: App {
     @StateObject private var state = AppState()
 
@@ -23,7 +22,14 @@ struct BWMonitorApp: App {
             MenuBarView()
                 .environmentObject(state)
         } label: {
-            Label(menuBarTitle, systemImage: "server.rack")
+            if let title = menuBarTitle {
+                HStack(spacing: 4) {
+                    Image(systemName: "server.rack")
+                    Text(title)
+                }
+            } else {
+                Image(systemName: "server.rack")
+            }
         }
         .menuBarExtraStyle(.window)
 
@@ -34,10 +40,10 @@ struct BWMonitorApp: App {
         }
     }
 
-    private var menuBarTitle: String {
-        if let metrics = state.selectedMetrics {
-            return "\(Int(metrics.cpuUsage * 100))% · \(Int(metrics.memoryPercentage * 100))%"
-        }
-        return "BWMonitor"
+    /// CPU and memory while live data arrives; just the icon otherwise, so
+    /// stale numbers never sit in the menu bar.
+    private var menuBarTitle: String? {
+        guard state.selectedConnection.isConnected, let metrics = state.selectedMetrics else { return nil }
+        return "\(Int(metrics.cpuUsage * 100))% · \(Int(metrics.memoryPercentage * 100))%"
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 import SwiftUI
@@ -85,14 +86,44 @@ enum UpdateStatus: Equatable {
     case failed(message: String)
 }
 
+/// SSH state of one server, shown on the dashboard and in the server list.
+enum ConnectionState: Equatable {
+    case idle
+    case connecting
+    case connected
+    /// A network problem; monitoring retries with increasing delays.
+    case retrying(message: String)
+    /// Retrying cannot help (for example a rejected login), so monitoring
+    /// paused until the settings are fixed.
+    case needsAttention(SSHError)
+    /// The server answered, but its output could not be read.
+    case failed(message: String)
+
+    var isConnected: Bool { self == .connected }
+}
+
+/// Opens the server editor from anywhere in the app.
+struct ServerEditorRequest: Identifiable {
+    let id = UUID()
+    let server: Server?
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published var servers: [Server] = []
-    @Published var selectedServerID: UUID?
+    @Published var selectedServerID: UUID? {
+        didSet {
+            if oldValue != selectedServerID { selectedServerChanged() }
+        }
+    }
     @Published var selection: SidebarDestination = .overview
     @Published var metricsByServer: [UUID: ServerMetrics] = [:]
     @Published var trafficByServer: [UUID: BandwagonTraffic] = [:]
+    @Published var connectionByServer: [UUID: ConnectionState] = [:]
     @Published var history: [MetricRecord] = []
+    @Published var historyRange: HistoryRange = .day {
+        didSet { reloadHistory() }
+    }
     @Published var services: [ServiceInfo] = []
     @Published var processes: [RemoteProcessInfo] = []
     @Published var isRefreshing = false
@@ -100,9 +131,14 @@ final class AppState: ObservableObject {
     @Published var lastError: String?
     @Published var lastRefresh: Date?
     @Published var updateStatus: UpdateStatus = .idle
+    @Published var editorRequest: ServerEditorRequest?
+    @Published var terminalSessions: [TerminalSession] = []
+    @Published var selectedTerminalID: UUID?
 
     let keychain = KeychainStore()
-    let ssh = SSHManager()
+    let ssh: SSHManager
+    private let askpassServer: AskpassServer?
+    let keyStore = SSHKeyStore()
     let repository = ServerRepository()
     let kiwi = KiwiVMClient()
     let notifications = NotificationManager()
@@ -111,9 +147,13 @@ final class AppState: ObservableObject {
     private let monitoring: MonitoringService
     private var monitoringTask: Task<Void, Never>?
     private var kiwiTask: Task<Void, Never>?
+    private var monitoredServerID: UUID?
     private var deliveredAlerts = Set<String>()
     private var lastHistoryWrite: [UUID: Date] = [:]
     private var cpuHighSince: [UUID: Date] = [:]
+    private var lastWidgetReload = Date.distantPast
+    private var lastWidgetOnline: Bool?
+    private var terminationObserver: NSObjectProtocol?
     let isDemoMode: Bool
 
     var selectedServer: Server? {
@@ -129,8 +169,19 @@ final class AppState: ObservableObject {
         selectedServerID.flatMap { trafficByServer[$0] }
     }
 
+    var selectedConnection: ConnectionState {
+        selectedServerID.flatMap { connectionByServer[$0] } ?? .idle
+    }
+
     init(demo: Bool = Foundation.ProcessInfo.processInfo.arguments.contains("--demo")) {
         isDemoMode = demo
+        let socketPath = AppEnvironment.controlSocketDirectory.appendingPathComponent("askpass-\(getpid())").path
+        askpassServer = demo ? nil : try? AskpassServer(socketPath: socketPath, keychain: keychain)
+        var askpass: SSHManager.Askpass?
+        if let helperPath = Bundle.main.executablePath, let server = askpassServer {
+            askpass = SSHManager.Askpass(helperPath: helperPath, socketPath: server.socketPath)
+        }
+        ssh = SSHManager(keychain: keychain, askpass: askpass)
         if let store = try? HistoryStore() {
             historyStore = store
         } else {
@@ -144,7 +195,15 @@ final class AppState: ObservableObject {
         if demo {
             installDemoData()
         } else {
+            pruneHistory()
             Task { await loadServers() }
+            terminationObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.willTerminateNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.shutDown() }
+            }
         }
     }
 
@@ -174,10 +233,19 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: Servers
+
     func loadServers() async {
         do {
             servers = try await repository.load()
-            selectedServerID = selectedServerID ?? servers.first?.id
+            // Leftovers of a server editor that was open when the app quit.
+            ssh.removeUnusedHostKeys(keeping: servers)
+            keychain.deleteAll(of: [.pendingPassword, .pendingPassphrase])
+            if selectedServerID == nil { selectedServerID = servers.first?.id }
+            if UserDefaults.standard.object(forKey: "autoStartMonitoring") as? Bool ?? true,
+               let server = selectedServer, ssh.isTrusted(server) {
+                beginMonitoring()
+            }
         } catch {
             lastError = String(
                 format: NSLocalizedString("Could not load servers: %@", comment: "Server loading error"),
@@ -186,49 +254,56 @@ final class AppState: ObservableObject {
         }
     }
 
-    func saveServer(
-        _ server: Server,
-        apiKey: String = "",
-        password: String = "",
-        keyPassphrase: String = ""
-    ) async -> Bool {
-        guard server.isValid else {
-            lastError = NSLocalizedString(
-                "Enter a name, host, valid port, and username.",
-                comment: "Invalid server form"
-            )
-            return false
+    func addServer() {
+        editorRequest = ServerEditorRequest(server: nil)
+    }
+
+    func edit(_ server: Server) {
+        editorRequest = ServerEditorRequest(server: server)
+    }
+
+    /// Stores an edited server. Called by the server editor after its own
+    /// checks; `previous` is the saved version, if any.
+    func commit(_ server: Server, replacing previous: Server?) async throws {
+        if let previous, ssh.controlPath(for: previous) != ssh.controlPath(for: server) {
+            ssh.closeSharedConnection(for: previous)
+            await monitoring.reset(serverID: server.id)
         }
-        do {
-            if let index = servers.firstIndex(where: { $0.id == server.id }) {
-                servers[index] = server
-            } else {
-                servers.append(server)
-            }
-            if !apiKey.isEmpty { try keychain.save(apiKey, for: server.id, kind: .kiwiAPIKey) }
-            if !password.isEmpty { try keychain.save(password, for: server.id, kind: .sshPassword) }
-            if !keyPassphrase.isEmpty { try keychain.save(keyPassphrase, for: server.id, kind: .privateKeyPassphrase) }
-            try await repository.save(servers)
-            selectedServerID = server.id
-            return true
-        } catch {
-            lastError = String(
-                format: NSLocalizedString("Could not save server: %@", comment: "Server save error"),
-                error.localizedDescription
-            )
-            return false
+        var updated = servers
+        if let index = updated.firstIndex(where: { $0.id == server.id }) {
+            updated[index] = server
+        } else {
+            updated.append(server)
+        }
+        try await repository.save(updated)
+        servers = updated
+        if case .needsAttention = connectionByServer[server.id] {
+            connectionByServer[server.id] = .idle
+        }
+        selectedServerID = server.id
+        // Restart with the new settings, or start once the server is usable.
+        if monitoringActive {
+            stopMonitoring()
+            beginMonitoring()
+        } else if UserDefaults.standard.object(forKey: "autoStartMonitoring") as? Bool ?? true, ssh.isTrusted(server) {
+            beginMonitoring()
         }
     }
 
     func deleteServer(_ server: Server) async {
         do {
+            if monitoredServerID == server.id { stopMonitoring() }
+            for session in terminalSessions where session.server.id == server.id { closeTerminal(session) }
             try keychain.deleteSecrets(for: server.id)
-            servers.removeAll { $0.id == server.id }
+            ssh.forgetHostKey(for: server)
+            var updated = servers
+            updated.removeAll { $0.id == server.id }
+            try await repository.save(updated)
+            servers = updated
             metricsByServer[server.id] = nil
             trafficByServer[server.id] = nil
-            try await repository.save(servers)
-            selectedServerID = servers.first?.id
-            if servers.isEmpty { stopMonitoring() }
+            connectionByServer[server.id] = nil
+            if selectedServerID == server.id { selectedServerID = servers.first?.id }
         } catch {
             lastError = String(
                 format: NSLocalizedString("Could not delete server: %@", comment: "Server deletion error"),
@@ -237,32 +312,58 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func selectedServerChanged() {
+        let wasMonitoring = monitoringActive
+        stopMonitoring()
+        services = []
+        processes = []
+        reloadHistory()
+        if wasMonitoring, let server = selectedServer, ssh.isTrusted(server) {
+            beginMonitoring()
+        }
+    }
+
+    // MARK: Monitoring
+
     func refreshAll() async {
-        guard let server = selectedServer else { return }
+        guard let server = selectedServer, !isDemoMode else { return }
         isRefreshing = true
         defer { isRefreshing = false }
-        await refreshMetrics(server)
+        _ = await collectMetrics(serverID: server.id)
         await refreshTraffic(server)
-        lastRefresh = .now
-        loadHistory(for: server.id)
-        saveWidgetSnapshot(server)
-        await evaluateAlerts(server)
+        if selection == .services { await loadServices() }
+        if selection == .processes { await loadProcesses() }
     }
 
     func beginMonitoring() {
-        guard !monitoringActive, !isDemoMode else { return }
+        guard !monitoringActive, !isDemoMode, let server = selectedServer else { return }
+        let serverID = server.id
         monitoringActive = true
+        monitoredServerID = serverID
         monitoringTask = Task { [weak self] in
+            var failures = 0
             while !Task.isCancelled {
-                guard let self, let server = self.selectedServer else { break }
-                await self.refreshMetrics(server)
-                let configured = UserDefaults.standard.object(forKey: "cpuRefreshInterval") as? Double ?? 2
-                try? await Task.sleep(for: .seconds(max(configured, 2)))
+                guard let self else { return }
+                let outcome = await self.collectMetrics(serverID: serverID)
+                guard !Task.isCancelled else { return }
+                let interval = max(UserDefaults.standard.object(forKey: "cpuRefreshInterval") as? Double ?? 2, 2)
+                switch outcome {
+                case .success:
+                    failures = 0
+                    try? await Task.sleep(for: .seconds(interval))
+                case .retry:
+                    // Back off so an unreachable server is not hammered.
+                    failures += 1
+                    try? await Task.sleep(for: .seconds(min(interval * pow(2, Double(failures)), 300)))
+                case .stop:
+                    self.stopMonitoring()
+                    return
+                }
             }
         }
         kiwiTask = Task { [weak self] in
             while !Task.isCancelled {
-                guard let self, let server = self.selectedServer else { break }
+                guard let self, let server = self.servers.first(where: { $0.id == serverID }) else { return }
                 await self.refreshTraffic(server)
                 let configured = UserDefaults.standard.object(forKey: "kiwiRefreshInterval") as? Double ?? 180
                 try? await Task.sleep(for: .seconds(max(configured, 120)))
@@ -276,21 +377,145 @@ final class AppState: ObservableObject {
         kiwiTask?.cancel()
         monitoringTask = nil
         kiwiTask = nil
+        if let id = monitoredServerID {
+            switch connectionByServer[id] {
+            case .connecting, .retrying, .connected: connectionByServer[id] = .idle
+            default: break
+            }
+        }
+        monitoredServerID = nil
     }
 
-    func inspectHostKey(_ server: Server) async throws -> SSHHostKeyStatus {
-        try await ssh.hostKeyStatus(for: server)
+    private enum CollectionOutcome {
+        case success
+        case retry
+        case stop
     }
 
-    func trustHostKey(_ identity: SSHHostIdentity, for server: Server) throws {
-        try ssh.trust(identity, for: server)
+    private func collectMetrics(serverID: UUID) async -> CollectionOutcome {
+        guard let server = servers.first(where: { $0.id == serverID }) else { return .stop }
+        guard ssh.isTrusted(server) else {
+            connectionByServer[serverID] = .needsAttention(.hostNotTrusted)
+            return .stop
+        }
+        if connectionByServer[serverID] != .connected { connectionByServer[serverID] = .connecting }
+        do {
+            let result = try await monitoring.refresh(server: server)
+            connectionByServer[serverID] = .connected
+            await apply(result, to: server)
+            return .success
+        } catch {
+            if Task.isCancelled || error is CancellationError { return .stop }
+            if let error = error as? SSHError {
+                if error.needsUserAction {
+                    connectionByServer[serverID] = .needsAttention(error)
+                    return .stop
+                }
+                connectionByServer[serverID] = .retrying(message: error.localizedDescription)
+            } else {
+                connectionByServer[serverID] = .failed(message: error.localizedDescription)
+            }
+            saveWidgetSnapshot(server)
+            return .retry
+        }
     }
+
+    private func apply(_ result: (metrics: ServerMetrics, operatingSystem: String), to server: Server) async {
+        metricsByServer[server.id] = result.metrics
+        if let index = servers.firstIndex(where: { $0.id == server.id }),
+           !result.operatingSystem.isEmpty,
+           servers[index].operatingSystem != result.operatingSystem {
+            servers[index].operatingSystem = result.operatingSystem
+            try? await repository.save(servers)
+        }
+        if Date.now.timeIntervalSince(lastHistoryWrite[server.id] ?? .distantPast) >= 60 {
+            do {
+                let record = try historyStore?.append(
+                    serverID: server.id,
+                    metrics: result.metrics,
+                    trafficUsed: trafficByServer[server.id]?.used ?? 0
+                )
+                lastHistoryWrite[server.id] = .now
+                if let record, server.id == selectedServerID { history.append(record) }
+            } catch {
+                lastError = String(
+                    format: NSLocalizedString("Could not save history: %@", comment: "History saving error"),
+                    error.localizedDescription
+                )
+            }
+        }
+        lastRefresh = .now
+        saveWidgetSnapshot(server)
+        await evaluateAlerts(server)
+    }
+
+    private func refreshTraffic(_ server: Server) async {
+        guard server.provider == .bandwagonHost else { return }
+        do {
+            guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else { return }
+            trafficByServer[server.id] = try await kiwi.serviceInfo(veid: server.veid, apiKey: apiKey)
+            lastRefresh = .now
+            saveWidgetSnapshot(server)
+            await evaluateAlerts(server)
+        } catch {
+            if !(error is CancellationError) { lastError = error.localizedDescription }
+        }
+    }
+
+    /// Explains why monitoring paused, with the most likely fix.
+    func explanation(for error: SSHError, server: Server) -> String {
+        guard case let .authenticationFailed(methods) = error else { return error.localizedDescription }
+        let reason: String
+        switch server.authentication {
+        case .password:
+            reason = NSLocalizedString("The password or user name is wrong.", comment: "Connection test hint")
+        case .key:
+            if let key = try? SSHKeyInspector.inspect(path: server.privateKeyPath), key.isEncrypted,
+               !keychain.contains(server.id, kind: .privateKeyPassphrase) {
+                reason = NSLocalizedString(
+                    "This key is protected by a passphrase that is not saved. Enter it in the server settings.",
+                    comment: "Dashboard status"
+                )
+            } else if methods.contains("password") || methods.contains("keyboard-interactive") {
+                reason = NSLocalizedString(
+                    "The server did not accept this key. Install the public key on the server with its password.",
+                    comment: "Connection test hint"
+                )
+            } else {
+                reason = error.localizedDescription
+            }
+        }
+        return String(
+            format: NSLocalizedString(
+                "%@ BWMonitor stopped retrying so the server does not block this Mac for repeated failed logins.",
+                comment: "Dashboard status"
+            ),
+            reason
+        )
+    }
+
+    /// True when SSH works, false when the server cannot be reached, nil
+    /// when unknown.
+    func isOnline(_ serverID: UUID) -> Bool? {
+        switch connectionByServer[serverID] {
+        case .connected:
+            return true
+        case let .needsAttention(error) where error.isConnectionLoss:
+            return false
+        case .retrying:
+            return false
+        default:
+            return trafficByServer[serverID]?.serverOnline
+        }
+    }
+
+    // MARK: Services and processes
 
     func loadServices() async {
-        guard let server = selectedServer else { return }
+        guard let server = selectedServer, !isDemoMode else { return }
         do {
             let output = try await ssh.execute(
-                "systemctl list-units --type=service --state=running --no-legend --no-pager | head -50",
+                "systemctl list-units --type=service --state=running --no-legend --no-pager | head -100",
                 on: server
             )
             services = output.components(separatedBy: .newlines).compactMap { line in
@@ -309,7 +534,7 @@ final class AppState: ObservableObject {
     }
 
     func loadProcesses() async {
-        guard let server = selectedServer else { return }
+        guard let server = selectedServer, !isDemoMode else { return }
         do {
             let output = try await ssh.execute(
                 "ps -eo pid,comm,%cpu,%mem --sort=-%cpu --no-headers | head -50",
@@ -328,10 +553,16 @@ final class AppState: ObservableObject {
         }
     }
 
-    func loadHistory(for serverID: UUID, range: TimeInterval = 24 * 3_600) {
+    // MARK: History
+
+    func reloadHistory() {
         if isDemoMode { return }
+        guard let serverID = selectedServerID else {
+            history = []
+            return
+        }
         do {
-            history = try historyStore?.fetch(serverID: serverID, since: .now.addingTimeInterval(-range)) ?? []
+            history = try historyStore?.fetch(serverID: serverID, since: .now.addingTimeInterval(-historyRange.interval)) ?? []
         } catch {
             lastError = String(
                 format: NSLocalizedString("Could not load history: %@", comment: "History loading error"),
@@ -340,54 +571,68 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func refreshMetrics(_ server: Server) async {
+    private func pruneHistory() {
+        let days = UserDefaults.standard.object(forKey: "historyRetentionDays") as? Int ?? 30
+        try? historyStore?.prune(olderThan: .now.addingTimeInterval(-Double(max(days, 1)) * 86_400))
+    }
+
+    // MARK: Terminal
+
+    func openTerminal(for target: Server? = nil) {
+        guard let server = target ?? selectedServer, !isDemoMode else { return }
+        let session = TerminalSession(server: server, ssh: ssh)
+        terminalSessions.append(session)
+        selectedTerminalID = session.id
+        session.connect()
+    }
+
+    func closeTerminal(_ session: TerminalSession) {
+        session.disconnect()
+        terminalSessions.removeAll { $0.id == session.id }
+        if selectedTerminalID == session.id { selectedTerminalID = terminalSessions.last?.id }
+    }
+
+    /// Opens an SSH session in Terminal.app (or the app set to open
+    /// `.command` files). It reuses BWMonitor's connection when one is open.
+    func openInExternalTerminal(_ server: Server) {
         do {
-            let result = try await monitoring.refresh(server: server)
-            metricsByServer[server.id] = result.metrics
-            if let index = servers.firstIndex(where: { $0.id == server.id }),
-               servers[index].operatingSystem != result.operatingSystem {
-                servers[index].operatingSystem = result.operatingSystem
-                try? await repository.save(servers)
-            }
-            if Date.now.timeIntervalSince(lastHistoryWrite[server.id] ?? .distantPast) >= 60 {
-                try historyStore?.append(
-                    serverID: server.id,
-                    metrics: result.metrics,
-                    trafficUsed: trafficByServer[server.id]?.used ?? 0
-                )
-                lastHistoryWrite[server.id] = .now
-            }
-            lastRefresh = .now
-            lastError = nil
-            saveWidgetSnapshot(server)
-            await evaluateAlerts(server)
+            let script = try ssh.externalTerminalScript(for: server)
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("BWMonitor-terminal", isDirectory: true)
+            try AppEnvironment.makePrivateDirectory(directory)
+            let url = directory.appendingPathComponent("\(server.name.filter { $0.isLetter || $0.isNumber }.prefix(20))-\(UUID().uuidString.prefix(6)).command")
+            try Data(script.utf8).write(to: url)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+            NSWorkspace.shared.open(url)
         } catch {
             lastError = error.localizedDescription
         }
     }
 
-    private func refreshTraffic(_ server: Server) async {
-        guard server.provider == .bandwagonHost else { return }
-        do {
-            guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else { return }
-            trafficByServer[server.id] = try await kiwi.serviceInfo(veid: server.veid, apiKey: apiKey)
-            lastRefresh = .now
-            lastError = nil
-            saveWidgetSnapshot(server)
-            await evaluateAlerts(server)
-        } catch {
-            lastError = error.localizedDescription
-        }
+    private func shutDown() {
+        terminalSessions.forEach { $0.disconnect() }
+        ssh.closeAllSharedConnections(for: servers)
+        askpassServer?.stop()
     }
+
+    // MARK: Widget and alerts
 
     private func saveWidgetSnapshot(_ server: Server) {
+        guard server.id == selectedServerID else { return }
+        let online = isOnline(server.id)
         let snapshot = WidgetSnapshot(
             server: server,
             metrics: metricsByServer[server.id],
-            traffic: trafficByServer[server.id]
+            traffic: trafficByServer[server.id],
+            isOnline: online
         )
         try? WidgetSnapshotStore.save(snapshot)
-        WidgetCenter.shared.reloadAllTimelines()
+        // WidgetKit budgets reloads; refresh at most once a minute unless the
+        // online state changed.
+        if Date.now.timeIntervalSince(lastWidgetReload) >= 60 || online != lastWidgetOnline {
+            WidgetCenter.shared.reloadAllTimelines()
+            lastWidgetReload = .now
+            lastWidgetOnline = online
+        }
     }
 
     private func evaluateAlerts(_ server: Server) async {
@@ -397,16 +642,23 @@ final class AppState: ObservableObject {
             memory: UserDefaults.standard.object(forKey: "memoryWarning") as? Double ?? 0.9,
             disk: UserDefaults.standard.object(forKey: "diskWarning") as? Double ?? 0.85
         )
-        if let cpu = metricsByServer[server.id]?.cpuUsage, cpu >= thresholds.cpu {
+        let metrics = metricsByServer[server.id]
+        if let cpu = metrics?.cpuUsage, cpu >= thresholds.cpu {
             cpuHighSince[server.id] = cpuHighSince[server.id] ?? .now
         } else {
             cpuHighSince[server.id] = nil
             deliveredAlerts.remove("\(server.id).cpu")
         }
+        // Allow an alert again once the value has clearly dropped, so a value
+        // hovering at the threshold does not notify repeatedly.
+        if let metrics {
+            if metrics.memoryPercentage < thresholds.memory - 0.05 { deliveredAlerts.remove("\(server.id).memory") }
+            if metrics.diskPercentage < thresholds.disk - 0.05 { deliveredAlerts.remove("\(server.id).disk") }
+        }
         let cpuSustained = Date.now.timeIntervalSince(cpuHighSince[server.id] ?? .now) >= 5 * 60
         for alert in AlertEvaluator.evaluate(
             server: server,
-            metrics: metricsByServer[server.id],
+            metrics: metrics,
             traffic: trafficByServer[server.id],
             thresholds: thresholds,
             cpuSustained: cpuSustained
@@ -416,12 +668,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: Demo
+
     private func installDemoData() {
         let server = Server.demo
         servers = [server]
         selectedServerID = server.id
         metricsByServer[server.id] = .demo
         trafficByServer[server.id] = .demo
+        connectionByServer[server.id] = .connected
         lastRefresh = .now
 
         let start = Date.now.addingTimeInterval(-24 * 3_600)

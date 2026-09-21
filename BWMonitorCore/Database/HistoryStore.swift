@@ -41,13 +41,37 @@ public final class HistoryStore {
 
     public init(inMemory: Bool = false) throws {
         let schema = Schema([MetricRecord.self])
-        let configuration = ModelConfiguration("BWMonitorHistory", schema: schema, isStoredInMemoryOnly: inMemory)
+        let configuration: ModelConfiguration
+        if inMemory {
+            configuration = ModelConfiguration("BWMonitorHistory", schema: schema, isStoredInMemoryOnly: true)
+        } else {
+            let url = AppEnvironment.supportDirectory.appendingPathComponent("History.store")
+            try Self.moveLegacyStore(to: url)
+            configuration = ModelConfiguration("BWMonitorHistory", schema: schema, url: url)
+        }
         container = try ModelContainer(for: schema, configurations: [configuration])
     }
 
-    public func append(serverID: UUID, metrics: ServerMetrics, trafficUsed: UInt64 = 0) throws {
-        context.insert(MetricRecord(serverID: serverID, metrics: metrics, trafficUsed: trafficUsed))
+    /// Version 1.0 kept its database directly in ~/Library/Application
+    /// Support. Move it into the BWMonitor folder.
+    private static func moveLegacyStore(to url: URL) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard AppEnvironment.isReleaseIdentity, !fileManager.fileExists(atPath: url.path) else { return }
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let legacy = base.appendingPathComponent("BWMonitorHistory.store").path
+        guard fileManager.fileExists(atPath: legacy) else { return }
+        for suffix in ["", "-wal", "-shm"] where fileManager.fileExists(atPath: legacy + suffix) {
+            try fileManager.moveItem(atPath: legacy + suffix, toPath: url.path + suffix)
+        }
+    }
+
+    @discardableResult
+    public func append(serverID: UUID, metrics: ServerMetrics, trafficUsed: UInt64 = 0) throws -> MetricRecord {
+        let record = MetricRecord(serverID: serverID, metrics: metrics, trafficUsed: trafficUsed)
+        context.insert(record)
         try context.save()
+        return record
     }
 
     public func fetch(serverID: UUID, since date: Date) throws -> [MetricRecord] {

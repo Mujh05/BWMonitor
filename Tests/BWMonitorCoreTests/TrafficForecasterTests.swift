@@ -23,6 +23,18 @@ final class TrafficForecasterTests: XCTestCase {
         XCTAssertNotNil(forecast.exhaustionDate)
     }
 
+    func testDailyUsageScalesToTheSampledSpan() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        // 12 GB over two days is 6 GB a day, not 12.
+        let daily = TrafficForecaster.dailyUsage(samples: [
+            (start, 10_000_000_000),
+            (start.addingTimeInterval(86_400), 0),
+            (start.addingTimeInterval(2 * 86_400), 22_000_000_000)
+        ])
+        XCTAssertEqual(daily, [6_000_000_000])
+        XCTAssertEqual(TrafficForecaster.dailyUsage(samples: [(start, 1), (start.addingTimeInterval(60), 5)]), [])
+    }
+
     func testForecastHandlesNoHistory() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let traffic = BandwagonTraffic(used: 400, limit: 1_000, nextReset: now.addingTimeInterval(86_400), serverOnline: true)

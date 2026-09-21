@@ -1,3 +1,4 @@
+import AppKit
 import ServiceManagement
 import SwiftUI
 
@@ -5,8 +6,8 @@ struct SettingsView: View {
     @EnvironmentObject private var state: AppState
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("cpuRefreshInterval") private var cpuRefreshInterval = 2.0
-    @AppStorage("networkRefreshInterval") private var networkRefreshInterval = 1.0
     @AppStorage("kiwiRefreshInterval") private var kiwiRefreshInterval = 180.0
+    @AppStorage("autoStartMonitoring") private var autoStartMonitoring = true
     @AppStorage("historyRetentionDays") private var historyRetentionDays = 30
     @AppStorage("trafficWarning") private var trafficWarning = 0.8
     @AppStorage("cpuWarning") private var cpuWarning = 0.9
@@ -14,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("diskWarning") private var diskWarning = 0.85
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var section = SettingsSection.general
+    @State private var appKey: SSHKeyInfo?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,6 +63,7 @@ struct SettingsView: View {
             Text("macOS may ask you to confirm this in Login Items.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Toggle("Start monitoring when BWMonitor opens", isOn: $autoStartMonitoring)
         }
         Section("Menu Bar") {
             LabeledContent("Status item", value: "CPU · RAM")
@@ -71,10 +74,13 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var monitoring: some View {
-        Section("Refresh Intervals") {
-            intervalRow("CPU and memory", value: $cpuRefreshInterval, range: 2...30)
-            intervalRow("Network", value: $networkRefreshInterval, range: 1...30)
+        Section {
+            intervalRow("Server metrics", value: $cpuRefreshInterval, range: 2...30)
             intervalRow("KiwiVM", value: $kiwiRefreshInterval, range: 120...900)
+        } header: {
+            Text("Refresh Intervals")
+        } footer: {
+            Text("CPU, memory, disk and network are read together over one SSH connection that stays open while monitoring.")
         }
         Section("History") {
             Stepper(value: $historyRetentionDays, in: 1...90) {
@@ -122,14 +128,37 @@ struct SettingsView: View {
 
     @ViewBuilder private var security: some View {
         Section("Credentials") {
-            Label("API keys and passwords are stored in macOS Keychain.", systemImage: "key.fill")
+            Label("API keys, passwords and key passphrases are stored in macOS Keychain.", systemImage: "key.fill")
             Label("Server identities are pinned in a private known_hosts file.", systemImage: "lock.shield.fill")
             Label("A changed SSH host key blocks the connection.", systemImage: "hand.raised.fill")
+            Label("Saved secrets go straight to ssh and are never typed into a terminal.", systemImage: "eye.slash.fill")
         }
-        Section("Background Monitoring") {
-            Text("Private-key or SSH-agent authentication is required. Saved passwords are only supplied to an interactive terminal prompt.")
-                .foregroundStyle(.secondary)
+        Section {
+            if let appKey {
+                LabeledContent("Fingerprint") {
+                    Text("\(appKey.displayAlgorithm)  \(appKey.fingerprint ?? "—")")
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                }
+                HStack {
+                    Button("Copy Public Key") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(appKey.publicKey ?? "", forType: .string)
+                    }
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: appKey.path)])
+                    }
+                }
+            } else {
+                Text("Not created yet. Choose “BWMonitor Key” when editing a server to create it.")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("BWMonitor Key")
+        } footer: {
+            Text("A key BWMonitor created for itself. Like the keys in ~/.ssh, only your user account can read it.")
         }
+        .onAppear { appKey = state.keyStore.appKey() }
     }
 
     @ViewBuilder private var about: some View {

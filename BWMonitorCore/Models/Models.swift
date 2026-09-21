@@ -5,9 +5,18 @@ public enum ServerProvider: String, Codable, CaseIterable, Sendable {
     case genericLinux = "Generic Linux"
 }
 
+/// Raw values are stored in `servers.json`; keep them unchanged.
 public enum SSHAuthentication: String, Codable, CaseIterable, Sendable {
     case key = "Private Key / SSH Agent"
     case password = "Password"
+
+    /// Localization key for the picker.
+    public var titleKey: String {
+        switch self {
+        case .key: "SSH Key"
+        case .password: "Password"
+        }
+    }
 }
 
 public struct Server: Codable, Identifiable, Hashable, Sendable {
@@ -49,6 +58,23 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         self.createdAt = createdAt
     }
 
+    public init(from decoder: Decoder) throws {
+        // Missing fields fall back to defaults, so settings written by older
+        // or newer versions still load.
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        host = try container.decodeIfPresent(String.self, forKey: .host) ?? ""
+        port = try container.decodeIfPresent(Int.self, forKey: .port) ?? 22
+        username = try container.decodeIfPresent(String.self, forKey: .username) ?? "root"
+        provider = (try? container.decodeIfPresent(ServerProvider.self, forKey: .provider)) ?? .genericLinux
+        veid = try container.decodeIfPresent(String.self, forKey: .veid) ?? ""
+        operatingSystem = try container.decodeIfPresent(String.self, forKey: .operatingSystem) ?? "Linux"
+        authentication = (try? container.decodeIfPresent(SSHAuthentication.self, forKey: .authentication)) ?? .key
+        privateKeyPath = try container.decodeIfPresent(String.self, forKey: .privateKeyPath) ?? ""
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+    }
+
     public var isValid: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -56,12 +82,37 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The server with stray whitespace removed from typed fields.
+    public var normalized: Server {
+        var copy = self
+        copy.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.username = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.veid = veid.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.privateKeyPath = privateKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return copy
+    }
+
+    /// Host names, IPv4 and IPv6 addresses. Rejects anything ssh could read
+    /// as an option.
+    public static func isValidHost(_ host: String) -> Bool {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_:[]%")
+        return !host.isEmpty && !host.hasPrefix("-") && host.count <= 253
+            && host.unicodeScalars.allSatisfy(allowed.contains)
+    }
+
+    public static func isValidUsername(_ username: String) -> Bool {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-@$")
+        return !username.isEmpty && !username.hasPrefix("-") && username.count <= 64
+            && username.unicodeScalars.allSatisfy(allowed.contains)
+    }
+
     public static let demo = Server(
         id: UUID(uuidString: "B6B3C9D0-6FB8-4F5C-A0D6-2DC6F6357B62")!,
-        name: "CCM",
-        host: "104.194.82.27",
+        name: "Demo VPS",
+        host: "203.0.113.10",
         provider: .bandwagonHost,
-        veid: "2178331",
+        veid: "1000000",
         operatingSystem: "Ubuntu 24.04"
     )
 }
@@ -184,14 +235,17 @@ public struct BandwagonTraffic: Codable, Equatable, Sendable {
     public var used: UInt64
     public var limit: UInt64
     public var nextReset: Date
-    public var serverOnline: Bool
+    /// Power state reported by KiwiVM, or nil when the response has none.
+    /// `getServiceInfo` usually omits it, so SSH reachability is the better
+    /// signal.
+    public var serverOnline: Bool?
     public var lastUpdated: Date
 
     public init(
         used: UInt64,
         limit: UInt64,
         nextReset: Date,
-        serverOnline: Bool,
+        serverOnline: Bool? = nil,
         lastUpdated: Date = .now
     ) {
         self.used = used
@@ -223,6 +277,16 @@ public struct TrafficForecast: Equatable, Sendable {
 }
 
 public enum TrafficForecaster {
+    /// Average bytes per day between the first and last traffic readings.
+    /// Readings of 0 (no KiwiVM data yet) and spans under an hour are ignored.
+    public static func dailyUsage(samples: [(date: Date, used: UInt64)]) -> [UInt64] {
+        let valid = samples.filter { $0.used > 0 }.sorted { $0.date < $1.date }
+        guard let first = valid.first, let last = valid.last, last.used >= first.used else { return [] }
+        let span = last.date.timeIntervalSince(first.date)
+        guard span >= 3_600 else { return [] }
+        return [UInt64(Double(last.used - first.used) / (span / 86_400))]
+    }
+
     public static func forecast(
         current: BandwagonTraffic,
         recentDailyUsage: [UInt64],

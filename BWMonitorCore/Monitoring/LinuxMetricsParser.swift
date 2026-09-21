@@ -57,16 +57,18 @@ public enum LinuxMetricsParserError: LocalizedError, Equatable {
 }
 
 public enum LinuxMetricsParser {
+    /// Sent to `sh` on the server. Only reads from `/proc` and standard tools.
     public static let command = #"""
-LC_ALL=C
+export LC_ALL=C
 echo __CPU__; head -n 1 /proc/stat
-echo __CORES__; nproc
+echo __CORES__; nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo
 echo __MEM__; cat /proc/meminfo
-echo __DISK__; df -B1 -P / | tail -n 1
+echo __DISK__; df -P -k / | tail -n 1
 echo __LOAD__; cat /proc/loadavg
 echo __UPTIME__; cat /proc/uptime
-echo __NET__; awk -F'[: ]+' '$1 != "lo" && $1 != "Inter-" && $1 != "face" && NF > 10 {print $1, $3, $11; exit}' /proc/net/dev
-echo __OS__; . /etc/os-release 2>/dev/null; printf '%s\n' "${PRETTY_NAME:-Linux}"
+echo __ROUTE__; awk '$2 == "00000000" { print $1; exit }' /proc/net/route 2>/dev/null
+echo __NET__; cat /proc/net/dev
+echo __OS__; ( if [ -r /etc/os-release ]; then . /etc/os-release; fi; printf '%s\n' "${PRETTY_NAME:-Linux}" )
 """#
 
     public static func parse(_ output: String, timestamp: Date = .now) throws -> LinuxSample {
@@ -74,16 +76,16 @@ echo __OS__; . /etc/os-release 2>/dev/null; printf '%s\n' "${PRETTY_NAME:-Linux}
         let cpu = try parseCPU(required("CPU", from: sections))
         let cores = Int(firstLine(required("CORES", from: sections))) ?? 1
         let memory = parseKeyValue(required("MEM", from: sections))
-        guard let memoryTotal = memory["MemTotal"],
-              let memoryAvailable = memory["MemAvailable"],
-              let swapTotal = memory["SwapTotal"],
-              let swapFree = memory["SwapFree"] else {
+        guard let memoryTotal = memory["MemTotal"] else {
             throw LinuxMetricsParserError.malformedSection("MEM")
         }
+        // MemAvailable is missing on kernels older than 3.14 (old OpenVZ).
+        let memoryAvailable = memory["MemAvailable"]
+            ?? (memory["MemFree"] ?? 0) + (memory["Buffers"] ?? 0) + (memory["Cached"] ?? 0)
         let disk = required("DISK", from: sections).split(whereSeparator: { $0.isWhitespace })
         guard disk.count >= 4,
-              let diskTotal = UInt64(disk[1]),
-              let diskUsed = UInt64(disk[2]) else {
+              let diskUsedKiB = UInt64(disk[2]),
+              let diskAvailableKiB = UInt64(disk[3]) else {
             throw LinuxMetricsParserError.malformedSection("DISK")
         }
         let load = required("LOAD", from: sections).split(whereSeparator: { $0.isWhitespace })
@@ -96,28 +98,31 @@ echo __OS__; . /etc/os-release 2>/dev/null; printf '%s\n' "${PRETTY_NAME:-Linux}
         guard let uptime = Double(firstLine(required("UPTIME", from: sections)).split(separator: " ").first ?? "") else {
             throw LinuxMetricsParserError.malformedSection("UPTIME")
         }
-        let network = required("NET", from: sections).split(whereSeparator: { $0.isWhitespace })
-        guard network.count >= 3,
-              let received = UInt64(network[1]),
-              let sent = UInt64(network[2]) else {
+        let interfaces = parseNetworkDevices(required("NET", from: sections))
+        guard let network = primaryInterface(
+            interfaces,
+            defaultRoute: firstLine(required("ROUTE", from: sections))
+        ) else {
             throw LinuxMetricsParserError.malformedSection("NET")
         }
 
         return LinuxSample(
             timestamp: timestamp,
             cpu: cpu,
-            cpuCores: cores,
+            cpuCores: max(cores, 1),
             memoryTotal: memoryTotal,
-            memoryAvailable: memoryAvailable,
+            memoryAvailable: min(memoryAvailable, memoryTotal),
             memoryCache: memory["Cached"] ?? 0,
             memoryBuffers: memory["Buffers"] ?? 0,
-            swapTotal: swapTotal,
-            swapFree: swapFree,
-            diskTotal: diskTotal,
-            diskUsed: diskUsed,
-            networkInterface: String(network[0]),
-            networkReceived: received,
-            networkSent: sent,
+            swapTotal: memory["SwapTotal"] ?? 0,
+            swapFree: memory["SwapFree"] ?? 0,
+            // Matches the Use% column of df, which leaves out blocks
+            // reserved for root.
+            diskTotal: (diskUsedKiB + diskAvailableKiB) * 1_024,
+            diskUsed: diskUsedKiB * 1_024,
+            networkInterface: network.name,
+            networkReceived: network.received,
+            networkSent: network.sent,
             load1: load1,
             load5: load5,
             load15: load15,
@@ -126,8 +131,48 @@ echo __OS__; . /etc/os-release 2>/dev/null; printf '%s\n' "${PRETTY_NAME:-Linux}
         )
     }
 
+    struct NetworkDevice: Equatable {
+        var name: String
+        var received: UInt64
+        var sent: UInt64
+    }
+
+    /// Parses `/proc/net/dev`. Interface names are right-aligned, so lines
+    /// are split at the colon rather than by field position.
+    static func parseNetworkDevices(_ text: String) -> [NetworkDevice] {
+        text.components(separatedBy: .newlines).compactMap { line in
+            guard let colon = line.firstIndex(of: ":") else { return nil }
+            let name = line[..<colon].trimmingCharacters(in: .whitespaces)
+            let fields = line[line.index(after: colon)...].split(whereSeparator: { $0.isWhitespace })
+            guard !name.isEmpty, fields.count >= 9,
+                  let received = UInt64(fields[0]),
+                  let sent = UInt64(fields[8]) else {
+                return nil
+            }
+            return NetworkDevice(name: name, received: received, sent: sent)
+        }
+    }
+
+    /// The interface with the default route, or else the busiest one that
+    /// is not loopback.
+    static func primaryInterface(_ devices: [NetworkDevice], defaultRoute: String) -> NetworkDevice? {
+        let route = defaultRoute.trimmingCharacters(in: .whitespaces)
+        if !route.isEmpty, let device = devices.first(where: { $0.name == route }) {
+            return device
+        }
+        return devices
+            .filter { $0.name != "lo" }
+            .max { $0.received &+ $0.sent < $1.received &+ $1.sent }
+    }
+
     public static func metrics(current: LinuxSample, previous: LinuxSample?) -> ServerMetrics {
-        let interval = previous.map { max(current.timestamp.timeIntervalSince($0.timestamp), 0.001) } ?? 1
+        // The server's uptime counter was read together with the other
+        // counters, so it measures the sampling interval without network
+        // delay. Fall back to local time after a reboot.
+        let uptimeInterval = previous.map { current.uptime - $0.uptime } ?? 0
+        let interval = uptimeInterval > 0.05
+            ? uptimeInterval
+            : previous.map { max(current.timestamp.timeIntervalSince($0.timestamp), 0.001) } ?? 1
         let cpuValues = cpuPercentages(current: current.cpu, previous: previous?.cpu)
         let receivedDelta = delta(current.networkReceived, previous?.networkReceived)
         let sentDelta = delta(current.networkSent, previous?.networkSent)
@@ -206,7 +251,8 @@ echo __OS__; . /etc/os-release 2>/dev/null; printf '%s\n' "${PRETTY_NAME:-Linux}
         let total = delta(current.total, previous.total)
         guard total > 0 else { return (0, 0, 0, 0) }
         let divisor = Double(total)
-        let idle = delta(current.idle, previous.idle)
+        // Time spent waiting for disk I/O is idle CPU, as in top.
+        let idle = delta(current.idle + current.ioWait, previous.idle + previous.ioWait)
         return (
             min(max(1 - Double(idle) / divisor, 0), 1),
             Double(delta(current.user + current.nice, previous.user + previous.nice)) / divisor,

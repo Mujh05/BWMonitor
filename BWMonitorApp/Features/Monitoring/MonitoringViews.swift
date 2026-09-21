@@ -3,7 +3,6 @@ import SwiftUI
 
 struct PerformanceView: View {
     @EnvironmentObject private var state: AppState
-    @State private var range: HistoryRange = .day
 
     var body: some View {
         ScrollView {
@@ -18,7 +17,7 @@ struct PerformanceView: View {
                         Text("History")
                             .font(.title2.weight(.semibold))
                         Spacer()
-                        RangePicker(range: $range)
+                        RangePicker(range: $state.historyRange)
                     }
                     PerformanceChart(records: state.history)
                     memoryDetails(metrics)
@@ -29,9 +28,6 @@ struct PerformanceView: View {
             .padding(28)
         }
         .navigationTitle("Performance")
-        .onChange(of: range) { _, value in
-            if let serverID = state.selectedServerID { state.loadHistory(for: serverID, range: value.interval) }
-        }
     }
 
     private func memoryDetails(_ metrics: ServerMetrics) -> some View {
@@ -80,7 +76,6 @@ private struct PerformanceChart: View {
 
 struct NetworkView: View {
     @EnvironmentObject private var state: AppState
-    @State private var range: HistoryRange = .day
 
     private var downloadLabel: String { NSLocalizedString("Download", comment: "Chart direction") }
     private var uploadLabel: String { NSLocalizedString("Upload", comment: "Chart direction") }
@@ -110,7 +105,7 @@ struct NetworkView: View {
                         Text("Transfer Rate")
                             .font(.title2.weight(.semibold))
                         Spacer()
-                        RangePicker(range: $range)
+                        RangePicker(range: $state.historyRange)
                     }
                     TransferSummary(records: state.history)
                     Chart {
@@ -130,9 +125,6 @@ struct NetworkView: View {
             .padding(28)
         }
         .navigationTitle("Network")
-        .onChange(of: range) { _, value in
-            if let serverID = state.selectedServerID { state.loadHistory(for: serverID, range: value.interval) }
-        }
     }
 
     private func rate(_ title: LocalizedStringKey, symbol: String, value: Double, color: Color) -> some View {
@@ -252,12 +244,7 @@ struct TrafficView: View {
     }
 
     private func forecastPanel(_ traffic: BandwagonTraffic) -> some View {
-        let daily: [UInt64]
-        if let first = state.history.first, let last = state.history.last, last.trafficUsed >= first.trafficUsed {
-            daily = [last.trafficUsed - first.trafficUsed]
-        } else {
-            daily = []
-        }
+        let daily = TrafficForecaster.dailyUsage(samples: state.history.map { ($0.timestamp, $0.trafficUsed) })
         let forecast = TrafficForecaster.forecast(current: traffic, recentDailyUsage: daily)
         return VStack(alignment: .leading, spacing: 14) {
             Text("Forecast")

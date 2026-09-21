@@ -6,14 +6,7 @@ public actor ServerRepository {
     private let decoder = JSONDecoder()
 
     public init(fileURL: URL? = nil) {
-        if let fileURL {
-            self.fileURL = fileURL
-        } else {
-            let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            self.fileURL = support
-                .appendingPathComponent("BWMonitor", isDirectory: true)
-                .appendingPathComponent("servers.json")
-        }
+        self.fileURL = fileURL ?? AppEnvironment.supportDirectory.appendingPathComponent("servers.json")
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
