@@ -43,5 +43,5 @@
 
 - A live KiwiVM request and live SSH session were not attempted because no credentials were supplied.
 - Widget/App Group and launch-at-login behavior require the signed build (`outputs/BWMonitor-signed-dev.app`, Apple Development team 6UBGLWDQ4P); install it to /Applications and add the widget manually to verify on-desktop display.
-- The unsigned deliverable is not notarized; neither build is a public release.
+- Neither build is notarized and neither is a public release.
 - Confirm the first SSH fingerprint through KiwiVM or the VPS provider before pressing **Trust**.
