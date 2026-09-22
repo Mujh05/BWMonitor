@@ -377,6 +377,7 @@ final class AppState: ObservableObject {
             return .success
         } catch {
             if Task.isCancelled || error is CancellationError { return .stop }
+            metricsByServer[serverID] = nil
             if let error = error as? SSHError {
                 if error.needsUserAction {
                     connectionByServer[serverID] = .needsAttention(error)

@@ -14,7 +14,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 
     public init(server: Server, metrics: ServerMetrics?, traffic: BandwagonTraffic?, isOnline: Bool? = nil) {
         serverName = server.name
-        self.isOnline = isOnline ?? traffic?.serverOnline ?? (metrics != nil)
+        self.isOnline = isOnline ?? (metrics != nil || traffic?.serverOnline == true)
         cpuUsage = metrics?.cpuUsage ?? 0
         memoryUsage = metrics?.memoryPercentage ?? 0
         diskUsage = metrics?.diskPercentage ?? 0
@@ -27,7 +27,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 }
 
 public enum WidgetSnapshotStore {
-    public static let appGroup = "group.com.mujh.BWMonitor"
+    public static let appGroup = "7V636A77V4.com.mujh.BWMonitor"
     private static let key = "latestWidgetSnapshot"
 
     public static func save(_ snapshot: WidgetSnapshot) throws {

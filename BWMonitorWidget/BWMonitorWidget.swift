@@ -83,8 +83,7 @@ private struct BWMonitorWidgetView: View {
                 Text(snapshot.trafficUsed.byteString)
                     .font(.title2.weight(.bold))
                     .monospacedDigit()
-                ProgressView(value: trafficPercentage(snapshot))
-                    .tint(.green)
+                WidgetProgressBar(value: trafficPercentage(snapshot))
                 Text("\(trafficPercentage(snapshot), format: .percent.precision(.fractionLength(0))) used")
                     .font(.caption)
             }
@@ -123,6 +122,30 @@ private struct BWMonitorWidgetView: View {
     private func trafficPercentage(_ snapshot: WidgetSnapshot) -> Double {
         guard snapshot.trafficLimit > 0 else { return 0 }
         return min(Double(snapshot.trafficUsed) / Double(snapshot.trafficLimit), 1)
+    }
+}
+
+private struct WidgetProgressBar: View {
+    let value: Double
+
+    private var normalizedValue: Double {
+        min(max(value, 0), 1)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.primary.opacity(0.18))
+                Capsule()
+                    .fill(.primary.opacity(0.9))
+                    .frame(width: proxy.size.width * normalizedValue)
+            }
+        }
+        .frame(height: 7)
+        .accessibilityElement()
+        .accessibilityLabel("Monthly traffic used")
+        .accessibilityValue(Text(normalizedValue, format: .percent.precision(.fractionLength(0))))
     }
 }
 
