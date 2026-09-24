@@ -17,20 +17,39 @@ struct TerminalView: View {
                 ContentUnavailableView {
                     Label("No terminal session", systemImage: "terminal")
                 } description: {
-                    Text("Open a shell on the selected server. Saved passwords and passphrases are used automatically.")
+                    Text("Choose a server and open a shell. Saved passwords and passphrases are used automatically.")
                 } actions: {
-                    Button("New Terminal") { state.openTerminal() }
+                    Menu("New Terminal", systemImage: "plus") {
+                        terminalServerChoices
+                    }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!canOpen)
+                        .disabled(!canOpenAny)
                 }
             }
         }
         .navigationTitle("Terminal")
     }
 
-    private var canOpen: Bool {
-        guard let server = state.selectedServer, !state.isDemoMode else { return false }
-        return state.ssh.isTrusted(server)
+    private var canOpenAny: Bool {
+        !state.isDemoMode && state.servers.contains(where: state.ssh.isTrusted)
+    }
+
+    private var externalServer: Server? {
+        selectedSession?.server ?? state.selectedServer
+    }
+
+    @ViewBuilder
+    private var terminalServerChoices: some View {
+        ForEach(state.servers) { server in
+            Button {
+                state.openTerminal(for: server)
+            } label: {
+                Label(server.name, systemImage: state.connectionByServer[server.id]?.isConnected == true
+                    ? "checkmark.circle.fill"
+                    : "server.rack")
+            }
+            .disabled(!state.ssh.isTrusted(server))
+        }
     }
 
     private var tabBar: some View {
@@ -50,15 +69,21 @@ struct TerminalView: View {
             .scrollIndicators(.never)
             Spacer()
             Button("Open in Terminal", systemImage: "arrow.up.forward.app") {
-                if let server = selectedSession?.server ?? state.selectedServer { state.openInExternalTerminal(server) }
+                if let externalServer { state.openInExternalTerminal(externalServer) }
             }
             .labelStyle(.iconOnly)
-            .disabled(!canOpen)
+            .disabled(externalServer.map(state.ssh.isTrusted) != true)
             .help("Open in Terminal")
-            Button("New Terminal", systemImage: "plus") { state.openTerminal() }
-                .labelStyle(.iconOnly)
-                .disabled(!canOpen)
-                .help("New Terminal")
+            Menu {
+                terminalServerChoices
+            } label: {
+                Label("New Terminal", systemImage: "plus")
+            }
+            .labelStyle(.iconOnly)
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .disabled(!canOpenAny)
+            .help("New Terminal")
         }
         .padding(.horizontal, 12)
         .frame(height: 44)
@@ -78,7 +103,7 @@ private struct TerminalTab: View {
                 Circle()
                     .fill(session.isConnected ? Color.green : Color.secondary)
                     .frame(width: 7, height: 7)
-                Text(session.title)
+                Text(session.server.name)
                     .lineLimit(1)
                     .frame(maxWidth: 180)
                 Button(action: close) {

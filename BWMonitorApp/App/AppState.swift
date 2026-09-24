@@ -119,7 +119,7 @@ final class AppState: ObservableObject {
     @Published var services: [ServiceInfo] = []
     @Published var processes: [RemoteProcessInfo] = []
     @Published var isRefreshing = false
-    @Published var monitoringActive = false
+    @Published private(set) var monitoredServerIDs: Set<UUID> = []
     @Published var lastError: String?
     @Published var lastRefresh: Date?
     @Published var editorRequest: ServerEditorRequest?
@@ -137,9 +137,8 @@ final class AppState: ObservableObject {
     let historyStore: HistoryStore?
 
     private let monitoring: MonitoringService
-    private var monitoringTask: Task<Void, Never>?
-    private var kiwiTask: Task<Void, Never>?
-    private var monitoredServerID: UUID?
+    private var monitoringTasks: [UUID: Task<Void, Never>] = [:]
+    private var kiwiTasks: [UUID: Task<Void, Never>] = [:]
     private var deliveredAlerts = Set<String>()
     private var lastHistoryWrite: [UUID: Date] = [:]
     private var cpuHighSince: [UUID: Date] = [:]
@@ -163,6 +162,10 @@ final class AppState: ObservableObject {
 
     var selectedConnection: ConnectionState {
         selectedServerID.flatMap { connectionByServer[$0] } ?? .idle
+    }
+
+    var monitoringActive: Bool {
+        selectedServerID.map(monitoredServerIDs.contains) ?? false
     }
 
     init(demo: Bool = Foundation.ProcessInfo.processInfo.arguments.contains("--demo")) {
@@ -213,9 +216,10 @@ final class AppState: ObservableObject {
             ssh.removeUnusedHostKeys(keeping: servers)
             keychain.deleteAll(of: [.pendingPassword, .pendingPassphrase])
             if selectedServerID == nil { selectedServerID = servers.first?.id }
-            if UserDefaults.standard.object(forKey: "autoStartMonitoring") as? Bool ?? true,
-               let server = selectedServer, ssh.isTrusted(server) {
-                beginMonitoring()
+            if UserDefaults.standard.object(forKey: "autoStartMonitoring") as? Bool ?? true {
+                for server in servers where ssh.isTrusted(server) {
+                    beginMonitoring(for: server)
+                }
             }
         } catch {
             lastError = String(
@@ -252,18 +256,18 @@ final class AppState: ObservableObject {
             connectionByServer[server.id] = .idle
         }
         selectedServerID = server.id
-        // Restart with the new settings, or start once the server is usable.
-        if monitoringActive {
-            stopMonitoring()
-            beginMonitoring()
+        // Restart only this server. Other servers keep collecting in parallel.
+        if monitoredServerIDs.contains(server.id) {
+            stopMonitoring(serverID: server.id)
+            beginMonitoring(for: server)
         } else if UserDefaults.standard.object(forKey: "autoStartMonitoring") as? Bool ?? true, ssh.isTrusted(server) {
-            beginMonitoring()
+            beginMonitoring(for: server)
         }
     }
 
     func deleteServer(_ server: Server) async {
         do {
-            if monitoredServerID == server.id { stopMonitoring() }
+            stopMonitoring(serverID: server.id)
             for session in terminalSessions where session.server.id == server.id { closeTerminal(session) }
             try keychain.deleteSecrets(for: server.id)
             ssh.forgetHostKey(for: server)
@@ -284,14 +288,9 @@ final class AppState: ObservableObject {
     }
 
     private func selectedServerChanged() {
-        let wasMonitoring = monitoringActive
-        stopMonitoring()
         services = []
         processes = []
         reloadHistory()
-        if wasMonitoring, let server = selectedServer, ssh.isTrusted(server) {
-            beginMonitoring()
-        }
     }
 
     // MARK: Monitoring
@@ -307,11 +306,15 @@ final class AppState: ObservableObject {
     }
 
     func beginMonitoring() {
-        guard !monitoringActive, !isDemoMode, let server = selectedServer else { return }
+        guard let server = selectedServer else { return }
+        beginMonitoring(for: server)
+    }
+
+    private func beginMonitoring(for server: Server) {
+        guard !monitoredServerIDs.contains(server.id), !isDemoMode else { return }
         let serverID = server.id
-        monitoringActive = true
-        monitoredServerID = serverID
-        monitoringTask = Task { [weak self] in
+        monitoredServerIDs.insert(serverID)
+        monitoringTasks[serverID] = Task { [weak self] in
             var failures = 0
             while !Task.isCancelled {
                 guard let self else { return }
@@ -327,34 +330,46 @@ final class AppState: ObservableObject {
                     failures += 1
                     try? await Task.sleep(for: .seconds(min(interval * pow(2, Double(failures)), 300)))
                 case .stop:
-                    self.stopMonitoring()
+                    self.stopMonitoring(serverID: serverID)
                     return
                 }
             }
         }
-        kiwiTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self, let server = self.servers.first(where: { $0.id == serverID }) else { return }
-                await self.refreshTraffic(server)
-                let configured = UserDefaults.standard.object(forKey: "kiwiRefreshInterval") as? Double ?? 180
-                try? await Task.sleep(for: .seconds(max(configured, 120)))
+        if server.provider == .bandwagonHost {
+            kiwiTasks[serverID] = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self, let server = self.servers.first(where: { $0.id == serverID }) else { return }
+                    await self.refreshTraffic(server)
+                    let configured = UserDefaults.standard.object(forKey: "kiwiRefreshInterval") as? Double ?? 180
+                    try? await Task.sleep(for: .seconds(max(configured, 120)))
+                }
             }
         }
     }
 
     func stopMonitoring() {
-        monitoringActive = false
-        monitoringTask?.cancel()
-        kiwiTask?.cancel()
-        monitoringTask = nil
-        kiwiTask = nil
-        if let id = monitoredServerID {
-            switch connectionByServer[id] {
-            case .connecting, .retrying, .connected: connectionByServer[id] = .idle
-            default: break
-            }
+        guard let selectedServerID else { return }
+        stopMonitoring(serverID: selectedServerID)
+    }
+
+    private func stopMonitoring(serverID: UUID) {
+        monitoringTasks.removeValue(forKey: serverID)?.cancel()
+        kiwiTasks.removeValue(forKey: serverID)?.cancel()
+        monitoredServerIDs.remove(serverID)
+        switch connectionByServer[serverID] {
+        case .connecting, .retrying, .connected: connectionByServer[serverID] = .idle
+        default: break
         }
-        monitoredServerID = nil
+    }
+
+    private func stopAllMonitoring() {
+        for serverID in monitoredServerIDs {
+            monitoringTasks[serverID]?.cancel()
+            kiwiTasks[serverID]?.cancel()
+        }
+        monitoringTasks.removeAll()
+        kiwiTasks.removeAll()
+        monitoredServerIDs.removeAll()
     }
 
     private enum CollectionOutcome {
@@ -430,7 +445,13 @@ final class AppState: ObservableObject {
             saveWidgetSnapshot(server)
             await evaluateAlerts(server)
         } catch {
-            if !(error is CancellationError) { lastError = error.localizedDescription }
+            if !(error is CancellationError) {
+                lastError = String(
+                    format: NSLocalizedString("Could not refresh traffic for %@: %@", comment: "Traffic refresh error"),
+                    server.name,
+                    error.localizedDescription
+                )
+            }
         }
     }
 
@@ -564,8 +585,8 @@ final class AppState: ObservableObject {
         if selectedTerminalID == session.id { selectedTerminalID = terminalSessions.last?.id }
     }
 
-    /// Opens an SSH session in Terminal.app (or the app set to open
-    /// `.command` files). It reuses BWMonitor's connection when one is open.
+    /// Opens an SSH session in Terminal.app. It reuses BWMonitor's connection
+    /// when one is open.
     func openInExternalTerminal(_ server: Server) {
         do {
             let script = try ssh.externalTerminalScript(for: server)
@@ -574,13 +595,31 @@ final class AppState: ObservableObject {
             let url = directory.appendingPathComponent("\(server.name.filter { $0.isLetter || $0.isNumber }.prefix(20))-\(UUID().uuidString.prefix(6)).command")
             try Data(script.utf8).write(to: url)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
-            NSWorkspace.shared.open(url)
+            let process = Process()
+            let errors = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = ["-b", "com.apple.Terminal", url.path]
+            process.standardError = errors
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                let detail = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                throw SSHError.commandFailed(detail.isEmpty
+                    ? NSLocalizedString("Terminal could not open the session file.", comment: "External terminal error")
+                    : detail)
+            }
         } catch {
-            lastError = error.localizedDescription
+            lastError = String(
+                format: NSLocalizedString("Could not open Terminal for %@: %@", comment: "External terminal error"),
+                server.name,
+                error.localizedDescription
+            )
         }
     }
 
     private func shutDown() {
+        stopAllMonitoring()
         terminalSessions.forEach { $0.disconnect() }
         ssh.closeAllSharedConnections(for: servers)
         askpassServer?.stop()

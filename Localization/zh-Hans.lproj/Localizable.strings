@@ -113,12 +113,16 @@
 /* Terminal */
 "No terminal session" = "尚无终端会话";
 "New Terminal" = "新建终端";
+"Choose a server and open a shell. Saved passwords and passphrases are used automatically." = "选择一台服务器并打开 Shell；已保存的密码和私钥密码会自动使用。";
 "Close %@ terminal" = "关闭 %@ 终端";
 "Connection blocked" = "连接已阻止";
 "Write failed" = "写入失败";
 "Could not create a pseudo terminal." = "无法创建伪终端。";
 "Session ended: %d" = "会话已结束：%d";
 "Connecting securely to %@…" = "正在安全连接到 %@…";
+"Terminal could not open the session file." = "“终端”无法打开会话文件。";
+"Could not open Terminal for %@: %@" = "无法在“终端”中打开 %@：%@";
+"Could not refresh traffic for %@: %@" = "无法刷新 %@ 的流量：%@";
 
 /* Settings */
 "Settings Section" = "设置分类";
