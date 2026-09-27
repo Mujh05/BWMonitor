@@ -151,6 +151,7 @@ struct KiwiVMTests {
         #expect(traffic.used == 1_500)
         #expect(traffic.limit == 6_000)
         #expect(traffic.serverOnline == nil)
+        #expect(StubURLProtocol.lastRequest?.timeoutInterval == 30)
     }
 
     @Test("API errors are reported")
@@ -164,6 +165,7 @@ struct KiwiVMTests {
 
 final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var body = Data()
+    nonisolated(unsafe) static var lastRequest: URLRequest?
 
     static func session(json: String) -> URLSession {
         body = Data(json.utf8)
@@ -176,6 +178,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        Self.lastRequest = request
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Self.body)

@@ -300,7 +300,7 @@ final class AppState: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
         _ = await collectMetrics(serverID: server.id)
-        await refreshTraffic(server)
+        await refreshTraffic(server, reportingErrors: true)
         if selection == .services { await loadServices() }
         if selection == .processes { await loadProcesses() }
     }
@@ -339,7 +339,7 @@ final class AppState: ObservableObject {
             kiwiTasks[serverID] = Task { [weak self] in
                 while !Task.isCancelled {
                     guard let self, let server = self.servers.first(where: { $0.id == serverID }) else { return }
-                    await self.refreshTraffic(server)
+                    await self.refreshTraffic(server, reportingErrors: false)
                     let configured = UserDefaults.standard.object(forKey: "kiwiRefreshInterval") as? Double ?? 180
                     try? await Task.sleep(for: .seconds(max(configured, 120)))
                 }
@@ -436,7 +436,7 @@ final class AppState: ObservableObject {
         await evaluateAlerts(server)
     }
 
-    private func refreshTraffic(_ server: Server) async {
+    private func refreshTraffic(_ server: Server, reportingErrors: Bool) async {
         guard server.provider == .bandwagonHost else { return }
         do {
             guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else { return }
@@ -445,7 +445,7 @@ final class AppState: ObservableObject {
             saveWidgetSnapshot(server)
             await evaluateAlerts(server)
         } catch {
-            if !(error is CancellationError) {
+            if reportingErrors, !(error is CancellationError) {
                 lastError = String(
                     format: NSLocalizedString("Could not refresh traffic for %@: %@", comment: "Traffic refresh error"),
                     server.name,

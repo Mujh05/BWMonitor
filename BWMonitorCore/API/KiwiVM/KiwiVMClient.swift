@@ -49,7 +49,7 @@ public struct KiwiVMClient: KiwiVMServing, Sendable {
         guard let url = components?.url else { throw KiwiVMError.invalidConfiguration }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = 30
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
