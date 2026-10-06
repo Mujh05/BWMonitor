@@ -23,6 +23,7 @@ Linux 指标。
 - API 密钥、密码、私钥密码只存 macOS 钥匙串
 - 中英文界面，跟随 macOS 应用语言设置
 - 从 GitHub Releases 自动更新，一键完成
+- 面向 AI 和脚本的 `bwmonitor` 命令行接口，输出稳定 JSON
 
 ### 连接服务器
 
@@ -59,6 +60,29 @@ BWMonitor 自己创建的密钥保存在
 从 [Releases](https://github.com/Mujh05/BWMonitor/releases/latest)
 下载 `BWMonitor-<版本>.dmg`，打开后把 BWMonitor 拖进 Applications 即可。
 签名版可直接运行；小组件需在桌面右键 → 编辑小组件 → 添加。
+
+### 命令行与 AI 接口
+
+安装终端命令（只需执行一次）：
+
+```sh
+/Applications/BWMonitor.app/Contents/MacOS/BWMonitor --cli install-cli
+```
+
+之后可直接使用：
+
+```sh
+bwmonitor servers
+bwmonitor status                 # 查询全部服务器实时指标
+bwmonitor status "Server name"   # 按名称、主机或 UUID 查询
+bwmonitor traffic                # 查询全部 KiwiVM 流量
+bwmonitor exec "Server name" -- uname -a
+bwmonitor shell "Server name"    # 打开交互式 SSH
+```
+
+数据命令默认输出带 `schemaVersion` 的 JSON，适合 AI 和脚本解析。接口复用
+应用已有的服务器配置、主机密钥与钥匙串；密码、API Key 和私钥密码不会写入
+命令参数或输出。
 
 ### 更新
 
@@ -130,6 +154,7 @@ Project home: https://github.com/Mujh05/BWMonitor
 - Keychain storage for API keys, passwords, and private-key passphrases
 - English and Simplified Chinese UI that follows the macOS app language
 - One-click self-update from GitHub Releases
+- A `bwmonitor` command-line interface for AI and scripts with stable JSON output
 
 ### Connecting a server
 
@@ -172,6 +197,29 @@ Download `BWMonitor-<version>.dmg` from
 [Releases](https://github.com/Mujh05/BWMonitor/releases/latest), open it, and
 drag BWMonitor into Applications. The signed build runs directly; to use the
 widget, right-click the desktop → Edit Widgets → add BWMonitor.
+
+### Command-line and AI interface
+
+Install the terminal command once:
+
+```sh
+/Applications/BWMonitor.app/Contents/MacOS/BWMonitor --cli install-cli
+```
+
+Then use it directly:
+
+```sh
+bwmonitor servers
+bwmonitor status
+bwmonitor status "Server name"
+bwmonitor traffic
+bwmonitor exec "Server name" -- uname -a
+bwmonitor shell "Server name"
+```
+
+Data commands emit versioned JSON for AI and scripts. The CLI reuses the app's
+server settings, pinned host keys, and Keychain items; passwords, API keys, and
+private-key passphrases are never included in arguments or output.
 
 ### Updates
 

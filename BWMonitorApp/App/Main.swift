@@ -5,9 +5,14 @@ import Foundation
 @main
 enum BWMonitorMain {
     @MainActor
-    static func main() {
+    static func main() async {
         if let status = SSHAskpass.runIfRequested() {
             exit(status)
+        }
+        var arguments = Array(CommandLine.arguments.dropFirst())
+        if let index = arguments.firstIndex(of: "--cli") {
+            arguments.remove(at: index)
+            exit(await BWMonitorCLI.run(arguments: arguments))
         }
         if CommandLine.arguments.contains("--debug-self-update") {
             SoftwareUpdater.runDebugSelfUpdate()
