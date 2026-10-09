@@ -26,6 +26,7 @@ public enum AlertEvaluator {
         server: Server,
         metrics: ServerMetrics?,
         traffic: BandwagonTraffic?,
+        awsTraffic: AWSMonthlyTraffic? = nil,
         thresholds: AlertThresholds,
         cpuSustained: Bool = false
     ) -> [MonitorAlert] {
@@ -41,6 +42,18 @@ public enum AlertEvaluator {
                     format: NSLocalizedString("%1$@ of %2$@ used", comment: "Traffic notification body"),
                     traffic.used.byteString,
                     traffic.limit.byteString
+                )
+            ))
+        }
+        if let awsTraffic, let percentage = awsTraffic.usagePercentage, percentage >= thresholds.traffic,
+           let limit = awsTraffic.limit {
+            alerts.append(MonitorAlert(
+                key: "\(server.id).traffic.\(Int(thresholds.traffic * 100))",
+                title: String(format: NSLocalizedString("%@ traffic warning", comment: "Traffic notification title"), server.name),
+                body: String(
+                    format: NSLocalizedString("%1$@ of %2$@ used", comment: "Traffic notification body"),
+                    awsTraffic.used.byteString,
+                    limit.byteString
                 )
             ))
         }

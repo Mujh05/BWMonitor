@@ -331,7 +331,7 @@ public struct SSHKeyStore: Sendable {
         let safe = String(host.unicodeScalars.filter {
             ($0.isASCII && CharacterSet.alphanumerics.contains($0)) || $0 == "-" || $0 == "."
         }.map(Character.init))
-        return safe.isEmpty ? "BWMonitor" : "BWMonitor@\(safe)"
+        return safe.isEmpty ? "ServerDock" : "ServerDock@\(safe)"
     }
 }
 

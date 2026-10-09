@@ -29,7 +29,7 @@ struct RootView: View {
                     sidebarItem(.settings)
                 }
             }
-            .navigationTitle("BWMonitor")
+            .navigationTitle("ServerDock")
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 10) {
                     if let release = updater.reminder {

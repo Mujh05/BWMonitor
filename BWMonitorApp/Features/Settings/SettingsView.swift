@@ -44,7 +44,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var general: some View {
         Section("Startup") {
-            Toggle("Launch BWMonitor at login", isOn: $launchAtLogin)
+            Toggle("Launch ServerDock at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, enabled in
                     do {
                         if enabled { try SMAppService.mainApp.register() }
@@ -63,7 +63,7 @@ struct SettingsView: View {
             Text("macOS may ask you to confirm this in Login Items.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Toggle("Start monitoring when BWMonitor opens", isOn: $autoStartMonitoring)
+            Toggle("Start monitoring when ServerDock opens", isOn: $autoStartMonitoring)
         }
         Section("Menu Bar") {
             LabeledContent("Status item", value: "CPU · RAM")
@@ -150,20 +150,21 @@ struct SettingsView: View {
                     }
                 }
             } else {
-                Text("Not created yet. Choose “BWMonitor Key” when editing a server to create it.")
+                Text("Not created yet. Choose “ServerDock Key” when editing a server to create it.")
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("BWMonitor Key")
+            Text("ServerDock Key")
         } footer: {
-            Text("A key BWMonitor created for itself. Like the keys in ~/.ssh, only your user account can read it.")
+            Text("A key ServerDock created for itself. Like the keys in ~/.ssh, only your user account can read it.")
         }
         .onAppear { appKey = state.keyStore.appKey() }
     }
 
     @ViewBuilder private var about: some View {
         Section {
-            LabeledContent("Application", value: "BWMonitor")
+            LabeledContent("Application", value: "ServerDock")
+            LabeledContent("Description", value: "Server monitoring and SSH")
             LabeledContent("Version", value: state.appVersion)
             LabeledContent {
                 Text("Native macOS · SwiftUI")
@@ -221,7 +222,7 @@ private struct SoftwareUpdateSection: View {
         } header: {
             Text("Software Update")
         } footer: {
-            Text("New versions come from GitHub Releases. BWMonitor checks the download, replaces itself, and reopens; your servers and settings stay as they are.")
+            Text("New versions come from GitHub Releases. ServerDock checks the download, replaces itself, and reopens; your servers and settings stay as they are.")
         }
     }
 

@@ -38,6 +38,9 @@ final class ServerEditorModel: ObservableObject {
         didSet { draftChanged(from: oldValue) }
     }
     @Published var apiKey = ""
+    @Published var awsAccessKeyID = ""
+    @Published var awsSecretAccessKey = ""
+    @Published var awsSessionToken = ""
     @Published var password = ""
     @Published var passphrase = ""
     @Published private(set) var hostKey: HostKeyState = .notChecked
@@ -54,6 +57,9 @@ final class ServerEditorModel: ObservableObject {
     let hasSavedPassword: Bool
     let hasSavedPassphrase: Bool
     let hasSavedAPIKey: Bool
+    let hasSavedAWSAccessKeyID: Bool
+    let hasSavedAWSSecretAccessKey: Bool
+    let hasSavedAWSSessionToken: Bool
 
     private let state: AppState
     private let probeID = UUID()
@@ -66,6 +72,9 @@ final class ServerEditorModel: ObservableObject {
         hasSavedPassword = server.map { state.keychain.contains($0.id, kind: .sshPassword) } ?? false
         hasSavedPassphrase = server.map { state.keychain.contains($0.id, kind: .privateKeyPassphrase) } ?? false
         hasSavedAPIKey = server.map { state.keychain.contains($0.id, kind: .kiwiAPIKey) } ?? false
+        hasSavedAWSAccessKeyID = server.map { state.keychain.contains($0.id, kind: .awsAccessKeyID) } ?? false
+        hasSavedAWSSecretAccessKey = server.map { state.keychain.contains($0.id, kind: .awsSecretAccessKey) } ?? false
+        hasSavedAWSSessionToken = server.map { state.keychain.contains($0.id, kind: .awsSessionToken) } ?? false
         let appKey = state.keyStore.appKey()
         let discovered = SSHKeyInspector.discoverKeys()
 
@@ -132,6 +141,14 @@ final class ServerEditorModel: ObservableObject {
         }
         if !Server.isValidUsername(server.username) {
             return NSLocalizedString("Enter a valid user name.", comment: "Server form validation")
+        }
+        if server.provider == .awsLightsail {
+            if server.awsInstanceName.isEmpty {
+                return NSLocalizedString("Enter the Lightsail instance name.", comment: "Server form validation")
+            }
+            if server.awsRegion.isEmpty {
+                return NSLocalizedString("Enter the AWS region.", comment: "Server form validation")
+            }
         }
         return nil
     }
@@ -362,6 +379,24 @@ final class ServerEditorModel: ObservableObject {
             } else {
                 try keychain.delete(server.id, kind: .kiwiAPIKey)
                 server.veid = ""
+            }
+            if server.provider == .awsLightsail {
+                if !awsAccessKeyID.isEmpty {
+                    try keychain.save(awsAccessKeyID.trimmingCharacters(in: .whitespacesAndNewlines), for: server.id, kind: .awsAccessKeyID)
+                }
+                if !awsSecretAccessKey.isEmpty {
+                    try keychain.save(awsSecretAccessKey.trimmingCharacters(in: .whitespacesAndNewlines), for: server.id, kind: .awsSecretAccessKey)
+                }
+                if !awsSessionToken.isEmpty {
+                    try keychain.save(awsSessionToken.trimmingCharacters(in: .whitespacesAndNewlines), for: server.id, kind: .awsSessionToken)
+                }
+            } else {
+                try keychain.delete(server.id, kind: .awsAccessKeyID)
+                try keychain.delete(server.id, kind: .awsSecretAccessKey)
+                try keychain.delete(server.id, kind: .awsSessionToken)
+                server.awsInstanceName = ""
+                server.awsRegion = ""
+                server.awsMonthlyTransferOverrideGB = nil
             }
             // Keep only the secrets the chosen sign-in method needs.
             switch server.authentication {

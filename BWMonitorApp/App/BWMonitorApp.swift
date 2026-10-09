@@ -4,7 +4,7 @@ struct BWMonitorApp: App {
     @StateObject private var state = AppState()
 
     var body: some Scene {
-        WindowGroup("BWMonitor", id: "dashboard") {
+        WindowGroup("ServerDock", id: "dashboard") {
             RootView()
                 .environmentObject(state)
                 .environmentObject(state.updater)

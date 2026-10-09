@@ -111,6 +111,8 @@ final class AppState: ObservableObject {
     @Published var selection: SidebarDestination = .overview
     @Published var metricsByServer: [UUID: ServerMetrics] = [:]
     @Published var trafficByServer: [UUID: BandwagonTraffic] = [:]
+    @Published var awsTrafficByServer: [UUID: AWSMonthlyTraffic] = [:]
+    @Published var trafficIssueByServer: [UUID: String] = [:]
     @Published var connectionByServer: [UUID: ConnectionState] = [:]
     @Published var history: [MetricRecord] = []
     @Published var historyRange: HistoryRange = .day {
@@ -133,6 +135,7 @@ final class AppState: ObservableObject {
     let keyStore = SSHKeyStore()
     let repository = ServerRepository()
     let kiwi = KiwiVMClient()
+    let lightsail = AWSLightsailClient()
     let notifications = NotificationManager()
     let historyStore: HistoryStore?
 
@@ -158,6 +161,14 @@ final class AppState: ObservableObject {
 
     var selectedTraffic: BandwagonTraffic? {
         selectedServerID.flatMap { trafficByServer[$0] }
+    }
+
+    var selectedAWSTraffic: AWSMonthlyTraffic? {
+        selectedServerID.flatMap { awsTrafficByServer[$0] }
+    }
+
+    var selectedTrafficIssue: String? {
+        selectedServerID.flatMap { trafficIssueByServer[$0] }
     }
 
     var selectedConnection: ConnectionState {
@@ -277,6 +288,8 @@ final class AppState: ObservableObject {
             servers = updated
             metricsByServer[server.id] = nil
             trafficByServer[server.id] = nil
+            awsTrafficByServer[server.id] = nil
+            trafficIssueByServer[server.id] = nil
             connectionByServer[server.id] = nil
             if selectedServerID == server.id { selectedServerID = servers.first?.id }
         } catch {
@@ -335,13 +348,13 @@ final class AppState: ObservableObject {
                 }
             }
         }
-        if server.provider == .bandwagonHost {
+        if server.provider == .bandwagonHost || server.provider == .awsLightsail {
             kiwiTasks[serverID] = Task { [weak self] in
                 while !Task.isCancelled {
                     guard let self, let server = self.servers.first(where: { $0.id == serverID }) else { return }
                     await self.refreshTraffic(server, reportingErrors: false)
-                    let configured = UserDefaults.standard.object(forKey: "kiwiRefreshInterval") as? Double ?? 180
-                    try? await Task.sleep(for: .seconds(max(configured, 120)))
+                    let configured = UserDefaults.standard.object(forKey: "kiwiRefreshInterval") as? Double ?? 300
+                    try? await Task.sleep(for: .seconds(max(configured, 300)))
                 }
             }
         }
@@ -420,7 +433,7 @@ final class AppState: ObservableObject {
                 let record = try historyStore?.append(
                     serverID: server.id,
                     metrics: result.metrics,
-                    trafficUsed: trafficByServer[server.id]?.used ?? 0
+                    trafficUsed: trafficByServer[server.id]?.used ?? awsTrafficByServer[server.id]?.used ?? 0
                 )
                 lastHistoryWrite[server.id] = .now
                 if let record, server.id == selectedServerID { history.append(record) }
@@ -437,14 +450,40 @@ final class AppState: ObservableObject {
     }
 
     private func refreshTraffic(_ server: Server, reportingErrors: Bool) async {
-        guard server.provider == .bandwagonHost else { return }
         do {
-            guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else { return }
-            trafficByServer[server.id] = try await kiwi.serviceInfo(veid: server.veid, apiKey: apiKey)
+            switch server.provider {
+            case .bandwagonHost:
+                guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else {
+                    throw KiwiVMError.invalidConfiguration
+                }
+                trafficByServer[server.id] = try await kiwi.serviceInfo(veid: server.veid, apiKey: apiKey)
+            case .awsLightsail:
+                guard let accessKeyID = try keychain.read(for: server.id, kind: .awsAccessKeyID), !accessKeyID.isEmpty,
+                      let secretAccessKey = try keychain.read(for: server.id, kind: .awsSecretAccessKey), !secretAccessKey.isEmpty else {
+                    throw AWSLightsailError.invalidConfiguration
+                }
+                let sessionToken = try keychain.read(for: server.id, kind: .awsSessionToken)
+                awsTrafficByServer[server.id] = try await lightsail.monthlyTraffic(
+                    instanceName: server.awsInstanceName,
+                    region: server.awsRegion,
+                    credentials: AWSCredentials(
+                        accessKeyID: accessKeyID,
+                        secretAccessKey: secretAccessKey,
+                        sessionToken: sessionToken
+                    ),
+                    quotaOverrideGB: server.awsMonthlyTransferOverrideGB
+                )
+            case .genericLinux:
+                return
+            }
+            trafficIssueByServer[server.id] = nil
             lastRefresh = .now
             saveWidgetSnapshot(server)
             await evaluateAlerts(server)
         } catch {
+            if !(error is CancellationError) {
+                trafficIssueByServer[server.id] = error.localizedDescription
+            }
             if reportingErrors, !(error is CancellationError) {
                 lastError = String(
                     format: NSLocalizedString("Could not refresh traffic for %@: %@", comment: "Traffic refresh error"),
@@ -480,7 +519,7 @@ final class AppState: ObservableObject {
         }
         return String(
             format: NSLocalizedString(
-                "%@ BWMonitor stopped retrying so the server does not block this Mac for repeated failed logins.",
+                "%@ ServerDock stopped retrying so the server does not block this Mac for repeated failed logins.",
                 comment: "Dashboard status"
             ),
             reason
@@ -634,6 +673,7 @@ final class AppState: ObservableObject {
             server: server,
             metrics: metricsByServer[server.id],
             traffic: trafficByServer[server.id],
+            awsTraffic: awsTrafficByServer[server.id],
             isOnline: online
         )
         try? WidgetSnapshotStore.save(snapshot)
@@ -671,6 +711,7 @@ final class AppState: ObservableObject {
             server: server,
             metrics: metrics,
             traffic: trafficByServer[server.id],
+            awsTraffic: awsTrafficByServer[server.id],
             thresholds: thresholds,
             cpuSustained: cpuSustained
         ) where !deliveredAlerts.contains(alert.key) {

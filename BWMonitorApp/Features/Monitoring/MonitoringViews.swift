@@ -233,6 +233,14 @@ struct TrafficView: View {
 
                     Divider().padding(.vertical, 8)
                     forecastPanel(traffic)
+                } else if let traffic = state.selectedAWSTraffic {
+                    AWSTrafficSection(traffic: traffic, issue: state.selectedTrafficIssue)
+                } else if state.selectedServer?.provider == .awsLightsail {
+                    if let issue = state.selectedTrafficIssue {
+                        TrafficIssueCard(message: issue, hasCachedData: false)
+                    } else {
+                        ContentUnavailableView("AWS traffic not loaded", systemImage: "chart.xyaxis.line", description: Text("Add read-only AWS credentials, then refresh."))
+                    }
                 } else {
                     ContentUnavailableView("KiwiVM data unavailable", systemImage: "chart.xyaxis.line", description: Text("Add a BandwagonHost VEID and API key, then refresh."))
                 }

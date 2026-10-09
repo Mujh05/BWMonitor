@@ -36,7 +36,7 @@ final class SSHKeyTests {
         #expect(info.fingerprint == (try await fingerprint(of: info.path)))
         let publicFile = try String(contentsOfFile: info.path + ".pub", encoding: .utf8)
         #expect(info.publicKey == publicFile.trimmingCharacters(in: .whitespacesAndNewlines))
-        #expect(info.comment.hasPrefix("BWMonitor"))
+        #expect(info.comment.hasPrefix("ServerDock"))
 
         await #expect(throws: SSHKeyError.alreadyExists(store.appKeyPath)) {
             _ = try await store.generateAppKey()

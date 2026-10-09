@@ -1,4 +1,4 @@
-# BWMonitor Development Status
+# ServerDock Development Status
 
 ## Implemented
 
@@ -7,6 +7,7 @@
 - [x] Keychain storage for KiwiVM API key, SSH password, and key passphrase; only the secrets the sign-in method needs are kept
 - [x] Askpass helper: saved passwords and passphrases reach ssh through a private socket to the running app, for monitoring and the terminal alike
 - [x] KiwiVM `getServiceInfo` client, traffic reset date, and `monthly_data_multiplier`
+- [x] AWS Lightsail monthly `NetworkIn`/`NetworkOut` traffic, UTC billing-month bounds, bundle allowance or explicit override, trend history, stale/error state, and Keychain credentials
 - [x] SSH host-key discovery (all key types), explicit trust, pinning, and changed-key blocking
 - [x] One shared SSH connection per server (`ControlMaster`), backoff on network errors, and no retries after a rejected login
 - [x] Linux metrics from `/proc`, `df`, `uptime`, `systemctl`, and `ps`
@@ -22,6 +23,7 @@
 - [x] English and Simplified Chinese localization for the app, menu bar, alerts, errors, and Widget
 - [x] Custom app icon (`BWMonitor.icns`) bundled with the app
 - [x] Self-update from GitHub Releases (1.2): daily background check, a reminder in the sidebar and menu bar window, "Check for Updates…" in the app menu, and "Update Now", which downloads the DMG, verifies it, replaces the app in place, and reopens it
+- [x] ServerDock 1.4 name and dual `serverdock`/`bwmonitor` JSON CLI compatibility
 
 ## Self-update (1.2)
 

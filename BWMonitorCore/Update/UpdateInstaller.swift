@@ -28,14 +28,14 @@ public enum UpdateInstaller {
         let app = bundle.resolvingSymlinksInPath()
         guard app.pathExtension == "app" else {
             throw UpdateInstallError.notReplaceable(
-                NSLocalizedString("BWMonitor is not running from an app bundle.", comment: "Update error")
+                NSLocalizedString("ServerDock is not running from an app bundle.", comment: "Update error")
             )
         }
         // Quarantined apps opened from Downloads run from a read-only copy.
         if app.path.contains("/AppTranslocation/") {
             throw UpdateInstallError.notReplaceable(
                 NSLocalizedString(
-                    "macOS is running BWMonitor from a temporary location because it was opened from Downloads.",
+                    "macOS is running ServerDock from a temporary location because it was opened from Downloads.",
                     comment: "Update error"
                 )
             )
@@ -43,7 +43,7 @@ public enum UpdateInstaller {
         if (try? app.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly == true {
             throw UpdateInstallError.notReplaceable(
                 NSLocalizedString(
-                    "BWMonitor is on a read-only disk, such as its installer.",
+                    "ServerDock is on a read-only disk, such as its installer.",
                     comment: "Update error"
                 )
             )
@@ -53,7 +53,7 @@ public enum UpdateInstaller {
               FileManager.default.isWritableFile(atPath: app.path) else {
             throw UpdateInstallError.notReplaceable(
                 String(
-                    format: NSLocalizedString("You don’t have permission to replace BWMonitor in “%@”.", comment: "Update error"),
+                    format: NSLocalizedString("You don’t have permission to replace ServerDock in “%@”.", comment: "Update error"),
                     folder.path
                 )
             )
@@ -132,7 +132,7 @@ public enum UpdateInstaller {
             $0.pathExtension == "app" && Bundle(url: $0)?.bundleIdentifier == bundleIdentifier
         }) else {
             throw UpdateInstallError.failed(
-                NSLocalizedString("The installer does not contain BWMonitor.", comment: "Update error")
+                NSLocalizedString("The installer does not contain ServerDock.", comment: "Update error")
             )
         }
         let found = Bundle(url: app)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String

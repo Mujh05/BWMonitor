@@ -24,6 +24,7 @@ struct ServerEditorView: View {
                     hostKeySection
                     signInSection
                     if model.draft.provider == .bandwagonHost { kiwiSection }
+                    if model.draft.provider == .awsLightsail { awsSection }
                     if model.test != .idle { testSection.id("test") }
                 }
                 .formStyle(.grouped)
@@ -137,7 +138,7 @@ struct ServerEditorView: View {
         } header: {
             Text("Host Key")
         } footer: {
-            Text("The host key proves you are talking to your server. BWMonitor refuses to connect if it ever changes.")
+            Text("The host key proves you are talking to your server. ServerDock refuses to connect if it ever changes.")
         }
     }
 
@@ -170,7 +171,7 @@ struct ServerEditorView: View {
                     Button {
                         Task { await model.useAppKey() }
                     } label: {
-                        Text(model.appKey == nil ? "Create BWMonitor Key" : "BWMonitor Key")
+                        Text(model.appKey == nil ? "Create ServerDock Key" : "ServerDock Key")
                     }
                 }
                 if !model.discoveredKeys.isEmpty {
@@ -202,7 +203,7 @@ struct ServerEditorView: View {
                 .foregroundStyle(.secondary)
         } else if model.appKeyMissing {
             HStack {
-                Text("BWMonitor creates its own key and keeps it on this Mac.")
+                Text("ServerDock creates its own key and keeps it on this Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -259,7 +260,7 @@ struct ServerEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Key login is safer and works without a saved password.", systemImage: "key.fill")
                 .font(.callout.weight(.medium))
-            Text("BWMonitor can create its own key, add it to the server using this password once, and switch to key login.")
+            Text("ServerDock can create its own key, add it to the server using this password once, and switch to key login.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
@@ -284,6 +285,38 @@ struct ServerEditorView: View {
             Text("KiwiVM")
         } footer: {
             Text("Find both in the KiwiVM control panel under API. They are used only to read monthly traffic.")
+        }
+    }
+
+    private var awsSection: some View {
+        Section {
+            TextField("Instance name", text: $model.draft.awsInstanceName, prompt: Text("Singapore"))
+            TextField("Region", text: $model.draft.awsRegion, prompt: Text("ap-southeast-1"))
+            TextField(
+                "Monthly transfer override (GB)",
+                value: $model.draft.awsMonthlyTransferOverrideGB,
+                format: .number.precision(.fractionLength(0...2)),
+                prompt: Text("Use bundle allowance")
+            )
+            SecureField(
+                "Access key ID",
+                text: $model.awsAccessKeyID,
+                prompt: Text(model.hasSavedAWSAccessKeyID ? "Saved in Keychain" : "Required for traffic")
+            )
+            SecureField(
+                "Secret access key",
+                text: $model.awsSecretAccessKey,
+                prompt: Text(model.hasSavedAWSSecretAccessKey ? "Saved in Keychain" : "Required for traffic")
+            )
+            SecureField(
+                "Session token",
+                text: $model.awsSessionToken,
+                prompt: Text(model.hasSavedAWSSessionToken ? "Saved in Keychain" : "Optional")
+            )
+        } header: {
+            Text("AWS Lightsail")
+        } footer: {
+            Text("ServerDock only reads the instance, bundle allowance, and NetworkIn/NetworkOut metrics. Credentials stay in macOS Keychain. A monthly override is used only when the bundle allowance cannot be read or you enter one explicitly.")
         }
     }
 
@@ -374,7 +407,7 @@ struct ServerEditorView: View {
 
     private var keyTitle: String {
         if model.isUsingAgent { return NSLocalizedString("Keys in SSH Agent", comment: "SSH key menu") }
-        if model.isUsingAppKey { return NSLocalizedString("BWMonitor Key", comment: "SSH key menu") }
+        if model.isUsingAppKey { return NSLocalizedString("ServerDock Key", comment: "SSH key menu") }
         return NSString(string: model.draft.privateKeyPath).abbreviatingWithTildeInPath
     }
 
@@ -441,7 +474,7 @@ private struct KeyInstallSheet: View {
             Text(
                 String(
                     format: NSLocalizedString(
-                        "BWMonitor signs in to %@ once with the password and adds the key to ~/.ssh/authorized_keys. Keys already on the server stay as they are.",
+                        "ServerDock signs in to %@ once with the password and adds the key to ~/.ssh/authorized_keys. Keys already on the server stay as they are.",
                         comment: "Key installation explanation"
                     ),
                     "\(model.draft.username)@\(model.draft.host)"
@@ -527,7 +560,7 @@ private struct PasteKeySheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Paste Private Key")
                 .font(.title3.weight(.semibold))
-            Text("Paste the whole key, including the BEGIN and END lines. BWMonitor saves it in its own folder, readable only by you.")
+            Text("Paste the whole key, including the BEGIN and END lines. ServerDock saves it in its own folder, readable only by you.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

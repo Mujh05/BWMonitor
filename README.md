@@ -1,12 +1,11 @@
-# BWMonitor
+# ServerDock
 
 [中文](#中文) | [English](#english)
 
 ## 中文
 
-BWMonitor 是一款原生 macOS VPS 监控与管理应用。首个版本聚焦
-BandwagonHost/KiwiVM 流量数据，以及经系统 OpenSSH 客户端采集的实时
-Linux 指标。
+ServerDock 是一款原生 macOS 服务器监控与 SSH 应用。它通过系统 OpenSSH
+采集 Linux 指标，并支持 BandwagonHost/KiwiVM 与 AWS Lightsail 月流量。
 
 项目主页：https://github.com/Mujh05/BWMonitor
 
@@ -15,7 +14,7 @@ Linux 指标。
 - 多服务器配置，非敏感数据存本地
 - 在应用内完成 SSH 连接设置：核对并信任主机密钥、选择或创建密钥、
   把公钥安装到服务器、测试连接
-- KiwiVM `getServiceInfo` 接入，三分钟刷新策略
+- KiwiVM `getServiceInfo` 与 AWS Lightsail `NetworkIn`/`NetworkOut` 月流量
 - SSH 主机密钥校验，独立 `known_hosts`
 - CPU、内存、交换空间、磁盘、负载、运行时间与网络速率采集
 - 原生 SwiftUI 仪表盘、历史图表、服务/进程视图与终端
@@ -23,7 +22,14 @@ Linux 指标。
 - API 密钥、密码、私钥密码只存 macOS 钥匙串
 - 中英文界面，跟随 macOS 应用语言设置
 - 从 GitHub Releases 自动更新，一键完成
-- 面向 AI 和脚本的 `bwmonitor` 命令行接口，输出稳定 JSON
+- 面向 AI 和脚本的 `serverdock` 命令行接口，输出稳定 JSON；旧的 `bwmonitor` 命令继续兼容
+
+### AWS Lightsail 流量
+
+把服务器的服务商设为 **AWS Lightsail**，填写实例名称和区域，再保存只读 AWS
+凭据。凭据只进入 macOS 钥匙串。所需最小读取权限为 `GetInstance`、
+`GetBundles`、`GetInstanceMetricData`。应用按 UTC 自然月显示入站、出站、合计、
+套餐配额、更新时间和历史趋势；后台刷新失败时保留上一次成功数据并标记错误。
 
 ### 连接服务器
 
@@ -66,18 +72,18 @@ BWMonitor 自己创建的密钥保存在
 安装终端命令（只需执行一次）：
 
 ```sh
-/Applications/BWMonitor.app/Contents/MacOS/BWMonitor --cli install-cli
+/Applications/ServerDock.app/Contents/MacOS/BWMonitor --cli install-cli
 ```
 
 之后可直接使用：
 
 ```sh
-bwmonitor servers
-bwmonitor status                 # 查询全部服务器实时指标
-bwmonitor status "Server name"   # 按名称、主机或 UUID 查询
-bwmonitor traffic                # 查询全部 KiwiVM 流量
-bwmonitor exec "Server name" -- uname -a
-bwmonitor shell "Server name"    # 打开交互式 SSH
+serverdock servers
+serverdock status                 # 查询全部服务器实时指标
+serverdock status "Server name"   # 按名称、主机或 UUID 查询
+serverdock traffic                # 查询全部 KiwiVM / AWS 流量
+serverdock exec "Server name" -- uname -a
+serverdock shell "Server name"    # 打开交互式 SSH
 ```
 
 数据命令默认输出带 `schemaVersion` 的 JSON，适合 AI 和脚本解析。接口复用
@@ -135,9 +141,9 @@ BWMonitor 跟随 macOS 的语言设置。如只想给 BWMonitor 单独指定语�
 
 ## English
 
-BWMonitor is a native macOS VPS monitor and manager. The first release focuses on
-BandwagonHost/KiwiVM traffic data plus live Linux metrics collected over the
-system OpenSSH client.
+ServerDock is a native macOS server monitoring and SSH app. It collects live
+Linux metrics over the system OpenSSH client and supports monthly traffic from
+BandwagonHost/KiwiVM and AWS Lightsail.
 
 Project home: https://github.com/Mujh05/BWMonitor
 
@@ -146,7 +152,7 @@ Project home: https://github.com/Mujh05/BWMonitor
 - Multiple-server configuration with non-sensitive data stored locally
 - SSH setup inside the app: verify and trust the host key, choose or create a
   key, install it on the server, and test the connection
-- KiwiVM `getServiceInfo` integration with a three-minute refresh policy
+- KiwiVM `getServiceInfo` and AWS Lightsail `NetworkIn`/`NetworkOut` monthly traffic
 - Verified SSH host keys and strict per-app `known_hosts`
 - CPU, memory, swap, disk, load, uptime, and network-rate collection
 - Native SwiftUI dashboard, history charts, services/process views, and terminal
@@ -154,7 +160,7 @@ Project home: https://github.com/Mujh05/BWMonitor
 - Keychain storage for API keys, passwords, and private-key passphrases
 - English and Simplified Chinese UI that follows the macOS app language
 - One-click self-update from GitHub Releases
-- A `bwmonitor` command-line interface for AI and scripts with stable JSON output
+- A `serverdock` command-line interface for AI and scripts with stable JSON output; `bwmonitor` remains a compatible alias
 
 ### Connecting a server
 
@@ -203,18 +209,18 @@ widget, right-click the desktop → Edit Widgets → add BWMonitor.
 Install the terminal command once:
 
 ```sh
-/Applications/BWMonitor.app/Contents/MacOS/BWMonitor --cli install-cli
+/Applications/ServerDock.app/Contents/MacOS/BWMonitor --cli install-cli
 ```
 
 Then use it directly:
 
 ```sh
-bwmonitor servers
-bwmonitor status
-bwmonitor status "Server name"
-bwmonitor traffic
-bwmonitor exec "Server name" -- uname -a
-bwmonitor shell "Server name"
+serverdock servers
+serverdock status
+serverdock status "Server name"
+serverdock traffic
+serverdock exec "Server name" -- uname -a
+serverdock shell "Server name"
 ```
 
 Data commands emit versioned JSON for AI and scripts. The CLI reuses the app's

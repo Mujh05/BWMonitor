@@ -37,7 +37,7 @@ private struct BWMonitorWidgetView: View {
                     large(snapshot)
                 }
             } else {
-                ContentUnavailableView("No snapshot", systemImage: "server.rack", description: Text("Open BWMonitor to collect data."))
+                ContentUnavailableView("No snapshot", systemImage: "server.rack", description: Text("Open ServerDock to collect data."))
             }
         }
         .containerBackground(.background, for: .widget)
@@ -156,8 +156,8 @@ private struct BWMonitorWidget: Widget {
         StaticConfiguration(kind: kind, provider: BWMonitorProvider()) { entry in
             BWMonitorWidgetView(entry: entry)
         }
-        .configurationDisplayName("BWMonitor")
-        .description("VPS health and monthly traffic at a glance.")
+        .configurationDisplayName("ServerDock")
+        .description("Server monitoring and SSH, with monthly traffic at a glance.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

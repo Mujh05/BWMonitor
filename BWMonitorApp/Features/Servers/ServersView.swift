@@ -50,7 +50,7 @@ struct ServersView: View {
             Text(
                 String(
                     format: NSLocalizedString(
-                        "%@ and its Keychain credentials will be removed from BWMonitor. The VPS itself is not changed.",
+                        "%@ and its Keychain credentials will be removed from ServerDock. The VPS itself is not changed.",
                         comment: "Server deletion confirmation"
                     ),
                     server.name

@@ -3,6 +3,9 @@ import Security
 
 public enum SecretKind: String, CaseIterable, Sendable {
     case kiwiAPIKey
+    case awsAccessKeyID
+    case awsSecretAccessKey
+    case awsSessionToken
     case sshPassword
     case privateKeyPassphrase
     /// Values typed in the server editor but not saved yet. They exist only
@@ -14,7 +17,7 @@ public enum SecretKind: String, CaseIterable, Sendable {
     public var isAskpassSecret: Bool {
         switch self {
         case .sshPassword, .privateKeyPassphrase, .pendingPassword, .pendingPassphrase: true
-        case .kiwiAPIKey: false
+        case .kiwiAPIKey, .awsAccessKeyID, .awsSecretAccessKey, .awsSessionToken: false
         }
     }
 }

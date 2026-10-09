@@ -123,12 +123,12 @@ final class SoftwareUpdater: ObservableObject {
         switch status {
         case let .available(release):
             alert.messageText = String(
-                format: NSLocalizedString("BWMonitor %@ is available", comment: "Update alert"),
+                format: NSLocalizedString("ServerDock %@ is available", comment: "Update alert"),
                 release.version
             )
             alert.informativeText = String(
                 format: NSLocalizedString(
-                    "You have version %@. BWMonitor downloads the new version, replaces itself, and reopens.",
+                    "You have version %@. ServerDock downloads the new version, replaces itself, and reopens.",
                     comment: "Update alert"
                 ),
                 currentVersion
@@ -142,7 +142,7 @@ final class SoftwareUpdater: ObservableObject {
             default: break
             }
         case .upToDate:
-            alert.messageText = NSLocalizedString("BWMonitor is up to date", comment: "Update alert")
+            alert.messageText = NSLocalizedString("ServerDock is up to date", comment: "Update alert")
             alert.informativeText = String(
                 format: NSLocalizedString("Version %@ is the newest version.", comment: "Update alert"),
                 currentVersion
@@ -207,7 +207,7 @@ final class SoftwareUpdater: ObservableObject {
             status = .idle
             message = String(
                 format: NSLocalizedString(
-                    "BWMonitor %@ is installed. Quit and reopen BWMonitor to use it.",
+                    "ServerDock %@ is installed. Quit and reopen ServerDock to use it.",
                     comment: "Update status"
                 ),
                 release.version
@@ -218,7 +218,7 @@ final class SoftwareUpdater: ObservableObject {
     /// Fallback: move the installer to Downloads and open it.
     private func installManually(_ dmg: URL, because error: Error) {
         let reason = String(
-            format: NSLocalizedString("BWMonitor could not update itself: %@", comment: "Update error"),
+            format: NSLocalizedString("ServerDock could not update itself: %@", comment: "Update error"),
             error.localizedDescription
         )
         // Opening from the temporary folder is pointless: it is deleted next.
@@ -227,7 +227,7 @@ final class SoftwareUpdater: ObservableObject {
             return
         }
         message = reason + " " + NSLocalizedString(
-            "The installer is open: quit BWMonitor, then drag it into Applications to replace the old copy. Later updates can then install automatically.",
+            "The installer is open: quit ServerDock, then drag it into Applications to replace the old copy. Later updates can then install automatically.",
             comment: "Update error"
         )
         NSWorkspace.shared.open(file)

@@ -197,7 +197,7 @@ public final class AppUpdateChecker: Sendable {
 
     public func latestRelease() async throws -> GitHubRelease {
         var request = URLRequest(url: AppUpdate.latestReleaseAPI, timeoutInterval: 20)
-        request.setValue("BWMonitor", forHTTPHeaderField: "User-Agent")
+        request.setValue("ServerDock", forHTTPHeaderField: "User-Agent")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try Self.check(response)

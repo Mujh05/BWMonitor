@@ -10,7 +10,7 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(state.selectedServer?.name ?? "BWMonitor")
+                    Text(state.selectedServer?.name ?? "ServerDock")
                         .font(.headline)
                     Group {
                         if let host = state.selectedServer?.host {
@@ -48,6 +48,20 @@ struct MenuBarView: View {
                     }
                     ProgressView(value: traffic.usagePercentage)
                     Text("\(traffic.used.byteString) / \(traffic.limit.byteString)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let traffic = state.selectedAWSTraffic {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("AWS Traffic")
+                        Spacer()
+                        if let percentage = traffic.usagePercentage {
+                            Text(percentage, format: BWFormat.percentage).monospacedDigit()
+                        }
+                    }
+                    if let percentage = traffic.usagePercentage { ProgressView(value: percentage) }
+                    Text("In \(traffic.inbound.byteString) · Out \(traffic.outbound.byteString)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

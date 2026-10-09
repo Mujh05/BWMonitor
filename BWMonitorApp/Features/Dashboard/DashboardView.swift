@@ -12,6 +12,7 @@ struct DashboardView: View {
                         server: server,
                         metrics: state.selectedMetrics,
                         traffic: state.selectedTraffic,
+                        awsTraffic: state.selectedAWSTraffic,
                         isOnline: state.isOnline(server.id),
                         sshConnected: state.selectedConnection.isConnected
                     )
@@ -24,6 +25,11 @@ struct DashboardView: View {
 
                     if let traffic = state.selectedTraffic {
                         TrafficSection(traffic: traffic, records: state.history)
+                    }
+                    if let traffic = state.selectedAWSTraffic {
+                        AWSTrafficSection(traffic: traffic, issue: state.selectedTrafficIssue)
+                    } else if server.provider == .awsLightsail, let issue = state.selectedTrafficIssue {
+                        TrafficIssueCard(message: issue, hasCachedData: false)
                     }
 
                     if !state.history.isEmpty {
@@ -43,6 +49,7 @@ private struct ServerHero: View {
     let server: Server
     let metrics: ServerMetrics?
     let traffic: BandwagonTraffic?
+    let awsTraffic: AWSMonthlyTraffic?
     let isOnline: Bool?
     let sshConnected: Bool
 
@@ -71,7 +78,10 @@ private struct ServerHero: View {
                     .textSelection(.enabled)
                 HStack(spacing: 18) {
                     StatusLabel(text: "SSH", active: sshConnected)
-                    StatusLabel(text: "KiwiVM", active: traffic != nil)
+                    StatusLabel(
+                        text: server.provider == .awsLightsail ? "AWS Lightsail" : "KiwiVM",
+                        active: traffic != nil || awsTraffic != nil
+                    )
                 }
                 .padding(.top, 4)
             }
@@ -94,6 +104,29 @@ private struct ServerHero: View {
         .padding(24)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .contain)
+    }
+}
+
+struct TrafficIssueCard: View {
+    let message: String
+    let hasCachedData: Bool
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(hasCachedData ? "AWS traffic may be stale" : "AWS traffic is not available")
+                    .font(.headline)
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
@@ -261,6 +294,85 @@ private struct TrafficSection: View {
     }
 }
 
+struct AWSTrafficSection: View {
+    let traffic: AWSMonthlyTraffic
+    let issue: String?
+
+    private var quotaLabel: String {
+        guard let limit = traffic.limit else { return NSLocalizedString("Quota unavailable", comment: "AWS traffic quota") }
+        let source = traffic.quotaSource == .override
+            ? NSLocalizedString("manual override", comment: "AWS quota source")
+            : NSLocalizedString("bundle allowance", comment: "AWS quota source")
+        return "\(limit.byteString) · \(source)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("AWS Monthly Traffic")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                (Text("Resets ") + Text(traffic.nextReset, format: .dateTime.month(.abbreviated).day()) + Text(" UTC"))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 26) {
+                trafficValue("Inbound", traffic.inbound, color: .blue)
+                trafficValue("Outbound", traffic.outbound, color: .mint)
+                trafficValue("Total", traffic.used, color: .primary)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("Monthly quota").font(.caption).foregroundStyle(.secondary)
+                    Text(quotaLabel).font(.callout.weight(.medium))
+                }
+            }
+            if let percentage = traffic.usagePercentage {
+                ProgressView(value: percentage)
+                    .tint(percentage >= 0.8 ? .orange : .green)
+                HStack {
+                    Text(percentage, format: BWFormat.percentage)
+                    Spacer()
+                    if let remaining = traffic.remaining { Text("\(remaining.byteString) remaining") }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+            if traffic.points.count > 1 {
+                Chart(traffic.points) { point in
+                    LineMark(x: .value("Time", point.timestamp), y: .value("Inbound", point.inbound))
+                        .foregroundStyle(.blue)
+                    LineMark(x: .value("Time", point.timestamp), y: .value("Outbound", point.outbound))
+                        .foregroundStyle(.mint)
+                }
+                .frame(height: 150)
+                .accessibilityLabel("AWS monthly inbound and outbound traffic history")
+            }
+            HStack {
+                if let latest = traffic.latestDataPoint {
+                    Text("Latest AWS data point ") + Text(latest, style: .relative) + Text(" ago")
+                } else {
+                    Text("AWS has not returned a data point yet")
+                }
+                Spacer()
+                Text("Refreshed ") + Text(traffic.lastUpdated, style: .relative) + Text(" ago")
+            }
+            .font(.caption)
+            .foregroundStyle(traffic.isStale() ? .orange : .secondary)
+            if let issue {
+                TrafficIssueCard(message: issue, hasCachedData: true)
+            }
+        }
+        .padding(20)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func trafficValue(_ label: LocalizedStringKey, _ value: UInt64, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value.byteString).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(color)
+        }
+    }
+}
+
 private struct HistoryOverview: View {
     let records: [MetricRecord]
     let range: HistoryRange
@@ -379,7 +491,7 @@ private struct ConnectionStatusCard: View {
                 tint: .accentColor,
                 title: NSLocalizedString("Finish setting up the connection", comment: "Dashboard status"),
                 message: NSLocalizedString(
-                    "Verify the server's host key and choose how BWMonitor signs in. It takes a minute and only needs to be done once.",
+                    "Verify the server's host key and choose how ServerDock signs in. It takes a minute and only needs to be done once.",
                     comment: "Dashboard status"
                 ),
                 actions: [Action(title: NSLocalizedString("Set Up Connection…", comment: "Dashboard action"), primary: true) {

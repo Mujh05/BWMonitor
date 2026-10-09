@@ -2,6 +2,7 @@ import Foundation
 
 public enum ServerProvider: String, Codable, CaseIterable, Sendable {
     case bandwagonHost = "BandwagonHost"
+    case awsLightsail = "AWS Lightsail"
     case genericLinux = "Generic Linux"
 }
 
@@ -27,6 +28,9 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
     public var username: String
     public var provider: ServerProvider
     public var veid: String
+    public var awsInstanceName: String
+    public var awsRegion: String
+    public var awsMonthlyTransferOverrideGB: Double?
     public var operatingSystem: String
     public var authentication: SSHAuthentication
     public var privateKeyPath: String
@@ -40,6 +44,9 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         username: String = "root",
         provider: ServerProvider = .genericLinux,
         veid: String = "",
+        awsInstanceName: String = "",
+        awsRegion: String = "",
+        awsMonthlyTransferOverrideGB: Double? = nil,
         operatingSystem: String = "Linux",
         authentication: SSHAuthentication = .key,
         privateKeyPath: String = "",
@@ -52,6 +59,9 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         self.username = username
         self.provider = provider
         self.veid = veid
+        self.awsInstanceName = awsInstanceName
+        self.awsRegion = awsRegion
+        self.awsMonthlyTransferOverrideGB = awsMonthlyTransferOverrideGB
         self.operatingSystem = operatingSystem
         self.authentication = authentication
         self.privateKeyPath = privateKeyPath
@@ -69,6 +79,9 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         username = try container.decodeIfPresent(String.self, forKey: .username) ?? "root"
         provider = (try? container.decodeIfPresent(ServerProvider.self, forKey: .provider)) ?? .genericLinux
         veid = try container.decodeIfPresent(String.self, forKey: .veid) ?? ""
+        awsInstanceName = try container.decodeIfPresent(String.self, forKey: .awsInstanceName) ?? ""
+        awsRegion = try container.decodeIfPresent(String.self, forKey: .awsRegion) ?? ""
+        awsMonthlyTransferOverrideGB = try container.decodeIfPresent(Double.self, forKey: .awsMonthlyTransferOverrideGB)
         operatingSystem = try container.decodeIfPresent(String.self, forKey: .operatingSystem) ?? "Linux"
         authentication = (try? container.decodeIfPresent(SSHAuthentication.self, forKey: .authentication)) ?? .key
         privateKeyPath = try container.decodeIfPresent(String.self, forKey: .privateKeyPath) ?? ""
@@ -89,6 +102,11 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         copy.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
         copy.username = username.trimmingCharacters(in: .whitespacesAndNewlines)
         copy.veid = veid.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.awsInstanceName = awsInstanceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.awsRegion = awsRegion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let override = copy.awsMonthlyTransferOverrideGB, override <= 0 {
+            copy.awsMonthlyTransferOverrideGB = nil
+        }
         copy.privateKeyPath = privateKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
         return copy
     }
@@ -267,6 +285,87 @@ public struct BandwagonTraffic: Codable, Equatable, Sendable {
         nextReset: Calendar.current.date(byAdding: .day, value: 13, to: .now)!,
         serverOnline: true
     )
+}
+
+public struct AWSTrafficPoint: Codable, Equatable, Sendable, Identifiable {
+    public var timestamp: Date
+    public var inbound: UInt64
+    public var outbound: UInt64
+    public var id: Date { timestamp }
+
+    public init(timestamp: Date, inbound: UInt64 = 0, outbound: UInt64 = 0) {
+        self.timestamp = timestamp
+        self.inbound = inbound
+        self.outbound = outbound
+    }
+
+    public var total: UInt64 { inbound &+ outbound }
+}
+
+public enum AWSQuotaSource: String, Codable, Equatable, Sendable {
+    case bundle
+    case override
+    case unknown
+}
+
+public struct AWSMonthlyTraffic: Codable, Equatable, Sendable {
+    public var inbound: UInt64
+    public var outbound: UInt64
+    public var limit: UInt64?
+    public var quotaSource: AWSQuotaSource
+    public var periodStart: Date
+    public var nextReset: Date
+    public var latestDataPoint: Date?
+    public var lastUpdated: Date
+    public var points: [AWSTrafficPoint]
+    public var bundleID: String?
+
+    public init(
+        inbound: UInt64,
+        outbound: UInt64,
+        limit: UInt64?,
+        quotaSource: AWSQuotaSource,
+        periodStart: Date,
+        nextReset: Date,
+        latestDataPoint: Date?,
+        lastUpdated: Date = .now,
+        points: [AWSTrafficPoint] = [],
+        bundleID: String? = nil
+    ) {
+        self.inbound = inbound
+        self.outbound = outbound
+        self.limit = limit
+        self.quotaSource = quotaSource
+        self.periodStart = periodStart
+        self.nextReset = nextReset
+        self.latestDataPoint = latestDataPoint
+        self.lastUpdated = lastUpdated
+        self.points = points
+        self.bundleID = bundleID
+    }
+
+    public var used: UInt64 { inbound &+ outbound }
+    public var remaining: UInt64? { limit.map { $0 > used ? $0 - used : 0 } }
+    public var usagePercentage: Double? {
+        guard let limit, limit > 0 else { return nil }
+        return min(max(Double(used) / Double(limit), 0), 1)
+    }
+
+    public func isStale(at now: Date = .now) -> Bool {
+        guard let latestDataPoint else { return true }
+        return now.timeIntervalSince(latestDataPoint) > 30 * 60
+    }
+}
+
+public enum AWSBillingMonth {
+    public static func bounds(containing date: Date, calendar supplied: Calendar = Calendar(identifier: .gregorian)) -> (start: Date, end: Date) {
+        var calendar = supplied
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let components = calendar.dateComponents([.year, .month], from: date)
+        let start = calendar.date(from: components)!
+        let end = calendar.date(byAdding: .month, value: 1, to: start)!
+        return (start, end)
+    }
 }
 
 public struct TrafficForecast: Equatable, Sendable {

@@ -85,20 +85,22 @@ public enum BWMonitorCLI {
     public static let schemaVersion = 1
 
     public static let help = """
-    BWMonitor command-line interface
+    ServerDock command-line interface
 
     Usage:
-      bwmonitor servers
-      bwmonitor status [SERVER]
-      bwmonitor traffic [SERVER]
-      bwmonitor exec SERVER -- COMMAND [ARG ...]
-      bwmonitor shell SERVER
-      bwmonitor install-cli
-      bwmonitor version
+      serverdock servers
+      serverdock status [SERVER]
+      serverdock traffic [SERVER]
+      serverdock exec SERVER -- COMMAND [ARG ...]
+      serverdock shell SERVER
+      serverdock install-cli
+      serverdock version
 
     SERVER is an exact server name, host, or UUID. Data commands write JSON
     to stdout. Passwords, API keys, and private-key passphrases are never
     included in output.
+
+    The legacy bwmonitor command remains an alias with the same JSON schema.
     """
 
     public static func run(arguments: [String]) async -> Int32 {
@@ -144,7 +146,8 @@ public enum BWMonitorCLI {
             let success = results.allSatisfy(\.ok)
             return encode(StatusResponse(schemaVersion: schemaVersion, statuses: results)) ? (success ? 0 : 1) : 1
         case let .traffic(selector):
-            guard let selected = select(selector, from: servers, provider: selector == nil ? .bandwagonHost : nil) else {
+            let trafficServers = servers.filter { $0.provider == .bandwagonHost || $0.provider == .awsLightsail }
+            guard let selected = select(selector, from: selector == nil ? trafficServers : servers) else {
                 return 2
             }
             let results = await traffic(for: selected, keychain: context.keychain)
@@ -242,15 +245,33 @@ public enum BWMonitorCLI {
         await withTaskGroup(of: (Int, TrafficOutput).self) { group in
             for (index, server) in servers.enumerated() {
                 group.addTask {
-                    guard server.provider == .bandwagonHost else {
+                    guard server.provider == .bandwagonHost || server.provider == .awsLightsail else {
                         return (index, TrafficOutput(server: server, error: "Traffic API is not available for this provider."))
                     }
                     do {
-                        guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else {
-                            return (index, TrafficOutput(server: server, error: "No KiwiVM API key is saved."))
+                        switch server.provider {
+                        case .bandwagonHost:
+                            guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else {
+                                return (index, TrafficOutput(server: server, error: "No KiwiVM API key is saved."))
+                            }
+                            let value = try await KiwiVMClient().serviceInfo(veid: server.veid, apiKey: apiKey)
+                            return (index, TrafficOutput(server: server, value: value))
+                        case .awsLightsail:
+                            guard let access = try keychain.read(for: server.id, kind: .awsAccessKeyID), !access.isEmpty,
+                                  let secret = try keychain.read(for: server.id, kind: .awsSecretAccessKey), !secret.isEmpty else {
+                                return (index, TrafficOutput(server: server, error: "No AWS access key ID and secret access key are saved."))
+                            }
+                            let token = try keychain.read(for: server.id, kind: .awsSessionToken)
+                            let value = try await AWSLightsailClient().monthlyTraffic(
+                                instanceName: server.awsInstanceName,
+                                region: server.awsRegion,
+                                credentials: AWSCredentials(accessKeyID: access, secretAccessKey: secret, sessionToken: token),
+                                quotaOverrideGB: server.awsMonthlyTransferOverrideGB
+                            )
+                            return (index, TrafficOutput(server: server, value: value))
+                        case .genericLinux:
+                            return (index, TrafficOutput(server: server, error: "Traffic API is not available for this provider."))
                         }
-                        let value = try await KiwiVMClient().serviceInfo(veid: server.veid, apiKey: apiKey)
-                        return (index, TrafficOutput(server: server, value: value))
                     } catch {
                         return (index, TrafficOutput(server: server, error: error.localizedDescription))
                     }
@@ -280,25 +301,30 @@ public enum BWMonitorCLI {
 
     private static func installLauncher() -> Int32 {
         guard let executable = Bundle.main.executablePath else {
-            writeError(code: "installation_failed", message: "BWMonitor executable path is unavailable.")
+            writeError(code: "installation_failed", message: "ServerDock executable path is unavailable.")
             return 1
         }
         let directory = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/bin", isDirectory: true)
-        let launcher = directory.appendingPathComponent("bwmonitor")
+        let launchers = [directory.appendingPathComponent("serverdock"), directory.appendingPathComponent("bwmonitor")]
         let script = "#!/bin/sh\nexec \(shellQuote(executable)) --cli \"$@\"\n"
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            if FileManager.default.fileExists(atPath: launcher.path) {
-                let existing = try String(contentsOf: launcher, encoding: .utf8)
-                guard existing.contains("BWMonitor.app/Contents/MacOS/BWMonitor") else {
-                    writeError(code: "launcher_exists", message: "\(launcher.path) already exists and was not created by BWMonitor.")
-                    return 1
+            for launcher in launchers {
+                if FileManager.default.fileExists(atPath: launcher.path) {
+                    let existing = try String(contentsOf: launcher, encoding: .utf8)
+                    guard existing.contains("BWMonitor.app/Contents/MacOS/BWMonitor")
+                        || existing.contains("ServerDock.app/Contents/MacOS/BWMonitor") else {
+                        writeError(code: "launcher_exists", message: "\(launcher.path) already exists and was not created by ServerDock.")
+                        return 1
+                    }
                 }
             }
-            try script.write(to: launcher, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
-            return encode(InstallResponse(schemaVersion: schemaVersion, installed: true, path: launcher.path)) ? 0 : 1
+            for launcher in launchers {
+                try script.write(to: launcher, atomically: true, encoding: .utf8)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+            }
+            return encode(InstallResponse(schemaVersion: schemaVersion, installed: true, path: launchers[0].path)) ? 0 : 1
         } catch {
             writeError(code: "installation_failed", message: error.localizedDescription)
             return 1
@@ -408,6 +434,11 @@ private struct TrafficOutput: Codable, Sendable {
     let remaining: UInt64?
     let usagePercentage: Double?
     let nextReset: Date?
+    let inbound: UInt64?
+    let outbound: UInt64?
+    let latestDataPoint: Date?
+    let lastUpdated: Date?
+    let quotaSource: String?
     let serverOnline: Bool?
     let error: String?
 
@@ -420,6 +451,28 @@ private struct TrafficOutput: Codable, Sendable {
         usagePercentage = value.usagePercentage
         nextReset = value.nextReset
         serverOnline = value.serverOnline
+        inbound = nil
+        outbound = nil
+        latestDataPoint = nil
+        lastUpdated = value.lastUpdated
+        quotaSource = nil
+        error = nil
+    }
+
+    init(server: Server, value: AWSMonthlyTraffic) {
+        self.server = ServerReference(server)
+        ok = true
+        used = value.used
+        limit = value.limit
+        remaining = value.remaining
+        usagePercentage = value.usagePercentage
+        nextReset = value.nextReset
+        serverOnline = nil
+        inbound = value.inbound
+        outbound = value.outbound
+        latestDataPoint = value.latestDataPoint
+        lastUpdated = value.lastUpdated
+        quotaSource = value.quotaSource.rawValue
         error = nil
     }
 
@@ -432,6 +485,11 @@ private struct TrafficOutput: Codable, Sendable {
         usagePercentage = nil
         nextReset = nil
         serverOnline = nil
+        inbound = nil
+        outbound = nil
+        latestDataPoint = nil
+        lastUpdated = nil
+        quotaSource = nil
         self.error = error
     }
 }
