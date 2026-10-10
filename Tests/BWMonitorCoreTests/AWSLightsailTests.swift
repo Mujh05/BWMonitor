@@ -14,6 +14,35 @@ struct AWSLightsailTests {
         #expect(formatter.string(from: bounds.end) == "2026-11-01T00:00:00Z")
     }
 
+    @Test("A full 31-day UTC month stays below the API point limit")
+    func fullMonthPointLimit() throws {
+        let formatter = ISO8601DateFormatter()
+        let start = try #require(formatter.date(from: "2026-01-01T00:00:00Z"))
+        let end = try #require(formatter.date(from: "2026-02-01T00:00:00Z"))
+        let count = AWSLightsailClient.maximumPointCount(start: start, end: end)
+        #expect(AWSLightsailClient.trafficMetricPeriod == 3_600)
+        #expect(count == 31 * 24)
+        #expect(count <= AWSLightsailClient.maximumMetricDataPoints)
+    }
+
+    @Test("Partial final hour is counted once without changing UTC month bounds")
+    func partialFinalHour() throws {
+        let formatter = ISO8601DateFormatter()
+        let start = try #require(formatter.date(from: "2026-10-01T00:00:00Z"))
+        let end = try #require(formatter.date(from: "2026-10-31T23:59:59Z"))
+        #expect(AWSLightsailClient.maximumPointCount(start: start, end: end) == 31 * 24)
+        let bounds = AWSBillingMonth.bounds(containing: end)
+        #expect(bounds.start == start)
+        #expect(formatter.string(from: bounds.end) == "2026-11-01T00:00:00Z")
+    }
+
+    @Test("Empty and reversed ranges request no points")
+    func invalidPointRanges() {
+        let now = Date.now
+        #expect(AWSLightsailClient.maximumPointCount(start: now, end: now) == 0)
+        #expect(AWSLightsailClient.maximumPointCount(start: now, end: now.addingTimeInterval(-1)) == 0)
+    }
+
     @Test("Traffic totals and unknown quota remain honest")
     func totals() {
         let traffic = AWSMonthlyTraffic(

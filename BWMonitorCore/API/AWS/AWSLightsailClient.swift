@@ -34,6 +34,12 @@ public enum AWSLightsailError: LocalizedError, Equatable {
 }
 
 public final class AWSLightsailClient: @unchecked Sendable {
+    /// A UTC calendar month has at most 744 hourly buckets, safely below
+    /// CloudWatch's 1,440-point limit. `Sum` preserves every underlying
+    /// 5-minute NetworkIn/NetworkOut sample in each bucket.
+    static let trafficMetricPeriod = 3_600
+    static let maximumMetricDataPoints = 1_440
+
     private let session: URLSession
     private let now: @Sendable () -> Date
 
@@ -112,7 +118,7 @@ public final class AWSLightsailClient: @unchecked Sendable {
         let body: [String: Any] = [
             "instanceName": instanceName,
             "metricName": name,
-            "period": 300,
+            "period": Self.trafficMetricPeriod,
             "startTime": start.timeIntervalSince1970,
             "endTime": end.timeIntervalSince1970,
             "statistics": ["Sum"],
@@ -174,6 +180,11 @@ public final class AWSLightsailClient: @unchecked Sendable {
         let value = gigabytes * 1_000_000_000
         guard value.isFinite, value > 0, value <= Double(UInt64.max) else { return nil }
         return UInt64(value.rounded())
+    }
+
+    static func maximumPointCount(start: Date, end: Date, period: Int = trafficMetricPeriod) -> Int {
+        guard end > start, period > 0 else { return 0 }
+        return Int(ceil(end.timeIntervalSince(start) / Double(period)))
     }
 }
 

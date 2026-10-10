@@ -353,7 +353,9 @@ public struct AWSMonthlyTraffic: Codable, Equatable, Sendable {
 
     public func isStale(at now: Date = .now) -> Bool {
         guard let latestDataPoint else { return true }
-        return now.timeIntervalSince(latestDataPoint) > 30 * 60
+        // Lightsail traffic is queried as hourly Sum buckets to keep a full
+        // 31-day month below the API's 1,440-point response limit.
+        return now.timeIntervalSince(latestDataPoint) > 2 * 60 * 60
     }
 }
 
