@@ -1,5 +1,14 @@
 import Foundation
 
+/// Leaving a view or stopping a refresh is not a connection failure.
+public enum OperationCancellation {
+    public static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        let error = error as NSError
+        return error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled
+    }
+}
+
 public actor MonitoringService {
     private let ssh: SSHManager
     private var previousSamples: [UUID: LinuxSample] = [:]

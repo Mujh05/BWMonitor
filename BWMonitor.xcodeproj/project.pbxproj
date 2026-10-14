@@ -6,6 +6,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        B20000000000000000000001 /* RemoteFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001; };
+        B20000000000000000000002 /* SSHFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002; };
+        B20000000000000000000003 /* FileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003; };
+        B20000000000000000000004 /* CloudProviderClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000004; };
 		B10000000000000000000001 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000001 /* Models.swift */; };
 		B10000000000000000000002 /* KiwiVMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000002 /* KiwiVMClient.swift */; };
 		B10000000000000000000003 /* LinuxMetricsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000003 /* LinuxMetricsParser.swift */; };
@@ -73,6 +77,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        F20000000000000000000001 /* RemoteFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Files/RemoteFiles.swift; sourceTree = "<group>"; };
+        F20000000000000000000002 /* SSHFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Files/SSHFileService.swift; sourceTree = "<group>"; };
+        F20000000000000000000003 /* FileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Files/FileBrowserView.swift; sourceTree = "<group>"; };
+        F20000000000000000000004 /* CloudProviderClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API/Cloud/CloudProviderClient.swift; sourceTree = "<group>"; };
 		F10000000000000000000001 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Models.swift; sourceTree = "<group>"; };
 		F10000000000000000000002 /* KiwiVMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API/KiwiVM/KiwiVMClient.swift; sourceTree = "<group>"; };
 		F10000000000000000000003 /* LinuxMetricsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Monitoring/LinuxMetricsParser.swift; sourceTree = "<group>"; };
@@ -139,6 +147,7 @@
 		C1000000000000000000000B /* BWMonitorApp */ = {
 			isa = PBXGroup;
 			children = (
+                F20000000000000000000003,
 				F1000000000000000000000B, F1000000000000000000000C, F1000000000000000000000D,
 				F1000000000000000000000E, F1000000000000000000000F, F10000000000000000000010,
 				F10000000000000000000011, F10000000000000000000012, F10000000000000000000013,
@@ -152,6 +161,7 @@
 		C1000000000000000000000C /* BWMonitorCore */ = {
 			isa = PBXGroup;
 			children = (
+                F20000000000000000000001, F20000000000000000000002, F20000000000000000000004,
 				F10000000000000000000001, F10000000000000000000002, F10000000000000000000003,
 				F10000000000000000000004, F10000000000000000000005, F10000000000000000000006,
 				F10000000000000000000007, F10000000000000000000008, F10000000000000000000009,
@@ -250,6 +260,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                B20000000000000000000001, B20000000000000000000002, B20000000000000000000003, B20000000000000000000004,
 				B10000000000000000000001, B10000000000000000000002, B10000000000000000000003,
 				B10000000000000000000004, B10000000000000000000005, B10000000000000000000006,
 				B10000000000000000000007, B10000000000000000000008, B10000000000000000000009,
@@ -282,13 +293,13 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BWMonitorApp/Resources/BWMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 7V636A77V4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorApp/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.4.1;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -300,13 +311,13 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = BWMonitorApp/Resources/BWMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 7V636A77V4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorApp/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.4.1;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -319,12 +330,12 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = BWMonitorWidget/BWMonitorWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 7V636A77V4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.4.1;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor.Widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -338,12 +349,12 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = BWMonitorWidget/BWMonitorWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 7V636A77V4;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BWMonitorWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.4.1;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mujh.BWMonitor.Widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

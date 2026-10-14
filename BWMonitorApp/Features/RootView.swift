@@ -19,6 +19,7 @@ struct RootView: View {
                 }
 
                 Section("Management") {
+                    sidebarItem(.files)
                     sidebarItem(.terminal)
                     sidebarItem(.services)
                     sidebarItem(.processes)
@@ -83,6 +84,8 @@ struct RootView: View {
                 TrafficView()
             case .terminal:
                 TerminalView()
+            case .files:
+                FileBrowserView()
             case .services:
                 ServicesView()
             case .processes:

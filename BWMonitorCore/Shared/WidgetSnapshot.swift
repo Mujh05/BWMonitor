@@ -17,18 +17,19 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         metrics: ServerMetrics?,
         traffic: BandwagonTraffic?,
         awsTraffic: AWSMonthlyTraffic? = nil,
+        cloudTraffic: CloudProviderTraffic? = nil,
         isOnline: Bool? = nil
     ) {
         serverName = server.name
-        self.isOnline = isOnline ?? (metrics != nil || traffic?.serverOnline == true)
+        self.isOnline = isOnline ?? (metrics != nil || traffic?.serverOnline == true || cloudTraffic?.serverOnline == true)
         cpuUsage = metrics?.cpuUsage ?? 0
         memoryUsage = metrics?.memoryPercentage ?? 0
         diskUsage = metrics?.diskPercentage ?? 0
-        trafficUsed = traffic?.used ?? awsTraffic?.used ?? 0
-        trafficLimit = traffic?.limit ?? awsTraffic?.limit ?? 0
+        trafficUsed = traffic?.used ?? awsTraffic?.used ?? cloudTraffic?.used ?? 0
+        trafficLimit = traffic?.limit ?? awsTraffic?.limit ?? cloudTraffic?.limit ?? 0
         downloadRate = metrics?.networkDownloadRate ?? 0
         uploadRate = metrics?.networkUploadRate ?? 0
-        updatedAt = max(metrics?.timestamp ?? .distantPast, traffic?.lastUpdated ?? awsTraffic?.lastUpdated ?? .distantPast)
+        updatedAt = max(metrics?.timestamp ?? .distantPast, traffic?.lastUpdated ?? awsTraffic?.lastUpdated ?? cloudTraffic?.lastUpdated ?? .distantPast)
     }
 }
 

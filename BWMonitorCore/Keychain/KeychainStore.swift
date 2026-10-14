@@ -6,6 +6,7 @@ public enum SecretKind: String, CaseIterable, Sendable {
     case awsAccessKeyID
     case awsSecretAccessKey
     case awsSessionToken
+    case cloudAPIKey
     case sshPassword
     case privateKeyPassphrase
     /// Values typed in the server editor but not saved yet. They exist only
@@ -17,7 +18,7 @@ public enum SecretKind: String, CaseIterable, Sendable {
     public var isAskpassSecret: Bool {
         switch self {
         case .sshPassword, .privateKeyPassphrase, .pendingPassword, .pendingPassphrase: true
-        case .kiwiAPIKey, .awsAccessKeyID, .awsSecretAccessKey, .awsSessionToken: false
+        case .kiwiAPIKey, .awsAccessKeyID, .awsSecretAccessKey, .awsSessionToken, .cloudAPIKey: false
         }
     }
 }
@@ -65,6 +66,25 @@ public final class KeychainStore: @unchecked Sendable {
 
     public func read(for serverID: UUID, kind: SecretKind) throws -> String? {
         try read(account: Self.account(serverID, kind))
+    }
+
+    /// Token and provider are replaced atomically, so concurrent app/CLI
+    /// requests cannot send a token to a different cloud during a config save.
+    public func saveCloudToken(_ token: String, for serverID: UUID, provider: ServerProvider) throws {
+        let data = try JSONEncoder().encode(ProviderToken(provider: provider, token: token))
+        try save(String(decoding: data, as: UTF8.self), for: serverID, kind: .cloudAPIKey)
+    }
+
+    public func readCloudToken(for serverID: UUID, provider: ServerProvider) throws -> String? {
+        guard let stored = try read(for: serverID, kind: .cloudAPIKey),
+              let value = try? JSONDecoder().decode(ProviderToken.self, from: Data(stored.utf8)),
+              value.provider == provider else { return nil }
+        return value.token
+    }
+
+    private struct ProviderToken: Codable {
+        var provider: ServerProvider
+        var token: String
     }
 
     public func read(account: String) throws -> String? {

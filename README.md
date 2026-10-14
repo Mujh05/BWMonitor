@@ -4,8 +4,8 @@
 
 ## 中文
 
-ServerDock 是一款原生 macOS 服务器监控与 SSH 应用。它通过系统 OpenSSH
-采集 Linux 指标，并支持 BandwagonHost/KiwiVM 与 AWS Lightsail 月流量。
+ServerDock 是原生 macOS / iOS 服务器监控与 SSH 应用。Mac 使用系统 OpenSSH，
+iPhone / iPad 通过原生 SSH 客户端直接连接 Linux 服务器，并支持安全文件传输。
 
 项目主页：https://github.com/Mujh05/BWMonitor
 
@@ -23,6 +23,39 @@ ServerDock 是一款原生 macOS 服务器监控与 SSH 应用。它通过系统
 - 中英文界面，跟随 macOS 应用语言设置
 - 从 GitHub Releases 自动更新，一键完成
 - 面向 AI 和脚本的 `serverdock` 命令行接口，输出稳定 JSON；旧的 `bwmonitor` 命令继续兼容
+- 远程文件夹浏览、隐藏文件切换、文件上传和下载；Mac 可从访达拖拽文件上传
+- iPhone / iPad 原生服务器管理、系统监控、月流量、文件与远程命令
+
+### 支持的平台
+
+所有平台都通过 SSH 支持 CPU、内存、磁盘、网络速率、终端和文件操作。
+平台名称不会限制连接：其他 Linux VPS 选择“通用 Linux”即可。
+
+| 平台 | 服务商月度流量 API |
+| --- | --- |
+| BandwagonHost / KiwiVM | 支持 |
+| AWS Lightsail | 支持，UTC 自然月入站 + 出站 |
+| Vultr | 支持，UTC 每日记录聚合，出站计费 |
+| Hetzner Cloud | 支持，当月出站计费字节数 |
+| DigitalOcean、阿里云、腾讯云、Oracle Cloud | 暂未接入计费 API；SSH 监控和文件功能可用 |
+
+Vultr 与 Hetzner 的实例 ID 和只读 Token 可在服务器编辑界面填写，Token 仅存
+钥匙串。不填 API 凭据仍可使用 SSH 功能。Vultr 显示的单实例套餐配额是参考值，
+不等同账户共享流量池；Hetzner API 不返回精确重置时刻，界面标注日历月计费。
+新平台 API 已用固定响应验证；配置实际 Token 后才能验证对应账户的实时数据。
+
+官方接口与计费说明：[Vultr API](https://www.vultr.com/api/)、
+[Vultr 流量池](https://docs.vultr.com/support/platform/billing/how-are-bandwidth-caps-calculated)、
+[Hetzner API](https://docs.hetzner.cloud/reference/cloud)、
+[Hetzner 计费](https://docs.hetzner.com/cloud/billing/faq/)。
+
+### 文件管理
+
+选择服务器后打开“文件”，默认进入 SSH 用户的主目录。支持上级目录、直接输入
+路径、隐藏文件、多文件上传和下载。Mac 可点击“上传”或将访达文件拖到列表。
+上传使用同一套主机指纹与认证配置，传输走加密 SFTP，同名远端文件不会被覆盖。
+当前支持文件上传，整个文件夹上传尚未实现。传输时可取消。
+Mac 的目录列表需要服务器有 GNU `find`；iOS 通过 SFTP 列目录。
 
 ### AWS Lightsail 流量
 
@@ -64,7 +97,7 @@ BWMonitor 自己创建的密钥保存在
 ### 安装
 
 从 [Releases](https://github.com/Mujh05/BWMonitor/releases/latest)
-下载 `BWMonitor-<版本>.dmg`，打开后把 BWMonitor 拖进 Applications 即可。
+下载 `ServerDock-<版本>-arm64.dmg`，打开后把 ServerDock 拖进 Applications 即可。
 签名版可直接运行；小组件需在桌面右键 → 编辑小组件 → 添加。
 
 ### 命令行与 AI 接口
@@ -82,6 +115,9 @@ serverdock servers
 serverdock status                 # 查询全部服务器实时指标
 serverdock status "Server name"   # 按名称、主机或 UUID 查询
 serverdock traffic                # 查询全部 KiwiVM / AWS 流量
+serverdock files "Server name" --path /var/www
+serverdock upload "Server name" ./index.html --to /var/www
+serverdock download "Server name" /var/www/index.html --to ./downloaded.html
 serverdock exec "Server name" -- uname -a
 serverdock shell "Server name"    # 打开交互式 SSH
 ```
@@ -89,6 +125,36 @@ serverdock shell "Server name"    # 打开交互式 SSH
 数据命令默认输出带 `schemaVersion` 的 JSON，适合 AI 和脚本解析。接口复用
 应用已有的服务器配置、主机密钥与钥匙串；密码、API Key 和私钥密码不会写入
 命令参数或输出。
+
+`files` 返回文件元数据而不读取文件内容；上传拒绝同名覆盖，CLI 下载也拒绝覆盖
+本地已有文件。所有命令继续使用 `schemaVersion: 1`。
+
+### iOS / iPadOS
+
+使用 Xcode 打开 `ServerDockIOS.xcodeproj`，选择 `ServerDockIOS` scheme。
+最低支持 iOS 18，iPhone 与 iPad 使用原生导航和系统字体，支持深色模式和动态字体。
+手机直接连接服务器，不依赖 Mac 中转。
+
+可在手机添加服务器，或从设置导入服务器 JSON；配置文件不包含密码、私钥或
+API Token，凭据需在手机单独填写。首次 SSH 连接会显示 SHA256 主机指纹，需要
+核对后确认；已信任主机更换密钥会阻止连接。私钥保存在设备钥匙串中。
+支持 Ed25519 / RSA OpenSSH 私钥，以及未加密 RSA PEM 导入。当前 iOS SSH
+依赖的 RSA 认证使用旧 `ssh-rsa` 签名；仅允许 RSA SHA2 的现代服务器请使用
+Ed25519 或密码认证。不要为兼容应用降低服务器的 SSH 算法设置。
+iOS 的“终端”执行一次性远程命令，不支持交互式 `vim` / `top`；Mac 仍保留交互终端。
+进入后台后监控会受 iOS 生命周期限制，返回前台可继续刷新。
+
+模拟器构建：
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcodebuild -project ServerDockIOS.xcodeproj -scheme ServerDockIOS \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -derivedDataPath work/ServerDockIOSBuild CODE_SIGNING_ALLOWED=NO build
+```
+
+真机安装需要在 Xcode 为 iOS target 选择自己的开发者团队并连接 iPhone。
+模拟器验收不代表已经安装到真机，也不代表已经发布到 App Store。
 
 ### 更新
 
@@ -141,9 +207,9 @@ BWMonitor 跟随 macOS 的语言设置。如只想给 BWMonitor 单独指定语�
 
 ## English
 
-ServerDock is a native macOS server monitoring and SSH app. It collects live
-Linux metrics over the system OpenSSH client and supports monthly traffic from
-BandwagonHost/KiwiVM and AWS Lightsail.
+ServerDock is a native macOS and iOS server monitoring and SSH app. It collects
+Linux metrics, browses remote folders, and transfers files over SSH/SFTP. macOS
+uses system OpenSSH; iOS connects directly through Citadel, without a Mac relay.
 
 Project home: https://github.com/Mujh05/BWMonitor
 
@@ -161,6 +227,15 @@ Project home: https://github.com/Mujh05/BWMonitor
 - English and Simplified Chinese UI that follows the macOS app language
 - One-click self-update from GitHub Releases
 - A `serverdock` command-line interface for AI and scripts with stable JSON output; `bwmonitor` remains a compatible alias
+- Remote folder browsing, file uploads/downloads and Finder drag-and-drop uploads on Mac
+- Provider traffic APIs for Vultr and Hetzner; DigitalOcean, Alibaba Cloud, Tencent Cloud and Oracle Cloud support SSH monitoring, commands and files
+- Native iPhone/iPad target in `ServerDockIOS.xcodeproj`, with separate device Keychain credentials and explicit host-fingerprint trust
+
+Vultr/Hetzner usage counts outbound bytes. Vultr's displayed instance allowance
+is not its account-wide shared billing pool. Hetzner's reset date is a computed
+calendar-month estimate, not a timestamp returned by its API. Adapters have
+fixture coverage; live provider validation requires your own read-only tokens.
+Folder uploads and interactive iOS terminal sessions are not implemented.
 
 ### Connecting a server
 
@@ -199,9 +274,9 @@ only your user account can read them. Copy the public key from
 
 ### Install
 
-Download `BWMonitor-<version>.dmg` from
+Download `ServerDock-<version>-arm64.dmg` from
 [Releases](https://github.com/Mujh05/BWMonitor/releases/latest), open it, and
-drag BWMonitor into Applications. The signed build runs directly; to use the
+drag ServerDock into Applications. The signed build runs directly; to use the
 widget, right-click the desktop → Edit Widgets → add BWMonitor.
 
 ### Command-line and AI interface
@@ -219,6 +294,9 @@ serverdock servers
 serverdock status
 serverdock status "Server name"
 serverdock traffic
+serverdock files "Server name" --path /var/www
+serverdock upload "Server name" ./index.html --to /var/www
+serverdock download "Server name" /var/www/index.html --to ./downloaded.html
 serverdock exec "Server name" -- uname -a
 serverdock shell "Server name"
 ```

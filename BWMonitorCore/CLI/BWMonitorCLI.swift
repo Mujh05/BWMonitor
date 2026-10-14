@@ -4,6 +4,9 @@ public enum BWMonitorCLICommand: Equatable, Sendable {
     case servers
     case status(selector: String?)
     case traffic(selector: String?)
+    case files(selector: String, path: String)
+    case upload(selector: String, local: String, directory: String)
+    case download(selector: String, remote: String, local: String)
     case execute(selector: String, command: [String])
     case shell(selector: String)
     case installCLI
@@ -45,6 +48,15 @@ public enum BWMonitorCLIParser {
         case "traffic":
             guard rest.count <= 1 else { throw unexpected(rest.dropFirst()) }
             return .traffic(selector: rest.first)
+        case "files", "ls":
+            guard let selector = rest.first else { throw BWMonitorCLIParseError.missingServer }
+            guard rest.count == 1 || (rest.count == 3 && rest[1] == "--path") else { throw unexpected(rest.dropFirst()) }
+            return .files(selector: selector, path: rest.count == 3 ? rest[2] : "")
+        case "upload", "download":
+            guard let selector = rest.first else { throw BWMonitorCLIParseError.missingServer }
+            guard rest.count == 4 && rest[2] == "--to" else { throw unexpected(rest.dropFirst()) }
+            return name == "upload" ? .upload(selector: selector, local: rest[1], directory: rest[3])
+                : .download(selector: selector, remote: rest[1], local: rest[3])
         case "exec":
             guard let selector = rest.first else { throw BWMonitorCLIParseError.missingServer }
             guard let commandStart = rest.firstIndex(of: "--") else {
@@ -91,6 +103,9 @@ public enum BWMonitorCLI {
       serverdock servers
       serverdock status [SERVER]
       serverdock traffic [SERVER]
+      serverdock files SERVER [--path DIRECTORY]
+      serverdock upload SERVER LOCAL_FILE --to REMOTE_DIRECTORY
+      serverdock download SERVER REMOTE_FILE --to LOCAL_FILE
       serverdock exec SERVER -- COMMAND [ARG ...]
       serverdock shell SERVER
       serverdock install-cli
@@ -146,7 +161,7 @@ public enum BWMonitorCLI {
             let success = results.allSatisfy(\.ok)
             return encode(StatusResponse(schemaVersion: schemaVersion, statuses: results)) ? (success ? 0 : 1) : 1
         case let .traffic(selector):
-            let trafficServers = servers.filter { $0.provider == .bandwagonHost || $0.provider == .awsLightsail }
+            let trafficServers = servers.filter { $0.provider.supportsTrafficAPI }
             guard let selected = select(selector, from: selector == nil ? trafficServers : servers) else {
                 return 2
             }
@@ -165,6 +180,43 @@ public enum BWMonitorCLI {
                 )) ? 0 : 1
             } catch {
                 writeError(code: "remote_command_failed", message: error.localizedDescription)
+                return 1
+            }
+        case let .files(selector, path):
+            guard let server = selectOne(selector, from: servers) else { return 2 }
+            do {
+                let listing = try await SSHFileService(ssh: context.ssh).list(path: path, on: server)
+                return encode(FilesResponse(schemaVersion: schemaVersion, server: ServerReference(server),
+                                            path: listing.path, entries: listing.entries)) ? 0 : 1
+            } catch {
+                writeError(code: "directory_failed", message: error.localizedDescription)
+                return 1
+            }
+        case let .upload(selector, local, directory):
+            guard let server = selectOne(selector, from: servers) else { return 2 }
+            do {
+                let source = URL(fileURLWithPath: NSString(string: local).expandingTildeInPath)
+                try await SSHFileService(ssh: context.ssh).upload(source, to: directory, on: server)
+                return encode(FileTransferResponse(schemaVersion: schemaVersion, server: ServerReference(server),
+                                                   ok: true, path: try RemoteFileCommands.join(directory: directory, name: source.lastPathComponent))) ? 0 : 1
+            } catch {
+                writeError(code: "upload_failed", message: error.localizedDescription)
+                return 1
+            }
+        case let .download(selector, remote, local):
+            guard let server = selectOne(selector, from: servers) else { return 2 }
+            do {
+                let target = URL(fileURLWithPath: NSString(string: local).expandingTildeInPath)
+                // Automation never overwrites an existing local file without consent.
+                guard !FileManager.default.fileExists(atPath: target.path) else { throw RemoteFileError.destinationExists }
+                let parent = (remote as NSString).deletingLastPathComponent
+                let listing = try await SSHFileService(ssh: context.ssh).list(path: parent, on: server)
+                guard let entry = listing.entries.first(where: { $0.path == remote }), entry.kind == .file else { throw RemoteFileError.invalidPath }
+                try await SSHFileService(ssh: context.ssh).download(entry, to: target, on: server)
+                return encode(FileTransferResponse(schemaVersion: schemaVersion, server: ServerReference(server),
+                                                   ok: true, path: target.path)) ? 0 : 1
+            } catch {
+                writeError(code: "download_failed", message: error.localizedDescription)
                 return 1
             }
         case let .shell(selector):
@@ -245,7 +297,7 @@ public enum BWMonitorCLI {
         await withTaskGroup(of: (Int, TrafficOutput).self) { group in
             for (index, server) in servers.enumerated() {
                 group.addTask {
-                    guard server.provider == .bandwagonHost || server.provider == .awsLightsail else {
+                    guard server.provider.supportsTrafficAPI else {
                         return (index, TrafficOutput(server: server, error: "Traffic API is not available for this provider."))
                     }
                     do {
@@ -269,7 +321,13 @@ public enum BWMonitorCLI {
                                 quotaOverrideGB: server.awsMonthlyTransferOverrideGB
                             )
                             return (index, TrafficOutput(server: server, value: value))
-                        case .genericLinux:
+                        case .vultr, .hetznerCloud:
+                            guard let token = try keychain.readCloudToken(for: server.id, provider: server.provider), !token.isEmpty else {
+                                return (index, TrafficOutput(server: server, error: "No provider API token is saved. SSH monitoring and files are available."))
+                            }
+                            let value = try await CloudProviderClient().fetchTraffic(server: server, apiToken: token)
+                            return (index, TrafficOutput(server: server, value: value))
+                        case .genericLinux, .digitalOcean, .alibabaCloud, .tencentCloud, .oracleCloud:
                             return (index, TrafficOutput(server: server, error: "Traffic API is not available for this provider."))
                         }
                     } catch {
@@ -476,6 +534,23 @@ private struct TrafficOutput: Codable, Sendable {
         error = nil
     }
 
+    init(server: Server, value: CloudProviderTraffic) {
+        self.server = ServerReference(server)
+        ok = true
+        used = value.used
+        limit = value.limit
+        remaining = value.remaining
+        usagePercentage = value.usagePercentage
+        nextReset = value.nextReset
+        serverOnline = value.serverOnline
+        inbound = value.inbound
+        outbound = value.outbound
+        latestDataPoint = value.latestDataPoint
+        lastUpdated = value.lastUpdated
+        quotaSource = value.quotaSource
+        error = nil
+    }
+
     init(server: Server, error: String) {
         self.server = ServerReference(server)
         ok = false
@@ -497,6 +572,8 @@ private struct TrafficOutput: Codable, Sendable {
 private struct ServersResponse: Codable { let schemaVersion: Int; let servers: [ServerOutput] }
 private struct StatusResponse: Codable { let schemaVersion: Int; let statuses: [StatusOutput] }
 private struct TrafficResponse: Codable { let schemaVersion: Int; let traffic: [TrafficOutput] }
+private struct FilesResponse: Codable { let schemaVersion: Int; let server: ServerReference; let path: String; let entries: [RemoteFileEntry] }
+private struct FileTransferResponse: Codable { let schemaVersion: Int; let server: ServerReference; let ok: Bool; let path: String }
 private struct ExecuteResponse: Codable { let schemaVersion: Int; let server: ServerReference; let stdout: String }
 private struct VersionResponse: Codable { let schemaVersion: Int; let version: String; let build: String }
 private struct InstallResponse: Codable { let schemaVersion: Int; let installed: Bool; let path: String }

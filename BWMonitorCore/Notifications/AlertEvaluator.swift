@@ -27,6 +27,7 @@ public enum AlertEvaluator {
         metrics: ServerMetrics?,
         traffic: BandwagonTraffic?,
         awsTraffic: AWSMonthlyTraffic? = nil,
+        cloudTraffic: CloudProviderTraffic? = nil,
         thresholds: AlertThresholds,
         cpuSustained: Bool = false
     ) -> [MonitorAlert] {
@@ -55,6 +56,17 @@ public enum AlertEvaluator {
                     awsTraffic.used.byteString,
                     limit.byteString
                 )
+            ))
+        }
+        // Vultr's instance plan allowance is not its shared account billing
+        // limit. Only alert against a user override there.
+        if let cloudTraffic, cloudTraffic.quotaSource != "instance_plan",
+           let percentage = cloudTraffic.usagePercentage, percentage >= thresholds.traffic,
+           let limit = cloudTraffic.limit {
+            alerts.append(MonitorAlert(
+                key: "\(server.id).traffic.\(Int(thresholds.traffic * 100))",
+                title: String(format: NSLocalizedString("%@ traffic warning", comment: "Traffic notification title"), server.name),
+                body: String(format: NSLocalizedString("%1$@ of %2$@ used", comment: "Traffic notification body"), cloudTraffic.used.byteString, limit.byteString)
             ))
         }
         if let metrics {

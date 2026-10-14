@@ -235,14 +235,24 @@ struct TrafficView: View {
                     forecastPanel(traffic)
                 } else if let traffic = state.selectedAWSTraffic {
                     AWSTrafficSection(traffic: traffic, issue: state.selectedTrafficIssue)
+                } else if let traffic = state.selectedCloudTraffic, let server = state.selectedServer {
+                    CloudTrafficSection(provider: server.provider, traffic: traffic, issue: state.selectedTrafficIssue)
                 } else if state.selectedServer?.provider == .awsLightsail {
                     if let issue = state.selectedTrafficIssue {
                         TrafficIssueCard(message: issue, hasCachedData: false)
                     } else {
                         ContentUnavailableView("AWS traffic not loaded", systemImage: "chart.xyaxis.line", description: Text("Add read-only AWS credentials, then refresh."))
                     }
-                } else {
+                } else if state.selectedServer?.provider == .bandwagonHost {
                     ContentUnavailableView("KiwiVM data unavailable", systemImage: "chart.xyaxis.line", description: Text("Add a BandwagonHost VEID and API key, then refresh."))
+                } else if state.selectedServer?.provider.supportsCloudTraffic == true {
+                    if let issue = state.selectedTrafficIssue {
+                        TrafficIssueCard(message: issue, hasCachedData: false)
+                    } else {
+                        ContentUnavailableView("Provider traffic not loaded", systemImage: "chart.xyaxis.line", description: Text("Add the provider instance ID and read-only API token, then refresh. SSH monitoring and files are available without them."))
+                    }
+                } else {
+                    ContentUnavailableView("Monthly traffic API unavailable", systemImage: "chart.xyaxis.line", description: Text("Use Network for live SSH transfer rates and observed history. These are not the provider's monthly billing totals."))
                 }
             }
             .padding(32)
@@ -284,7 +294,7 @@ struct ServicesView: View {
             TableColumn("Description", value: \.description)
         }
         .navigationTitle("Services")
-        .task { if state.services.isEmpty { await state.loadServices() } }
+        .task(id: state.selectedServerID) { await state.loadServices() }
         .overlay {
             if state.services.isEmpty {
                 ContentUnavailableView("No running services loaded", systemImage: "gearshape.2", description: Text("Refresh after SSH is connected."))
@@ -307,7 +317,7 @@ struct ProcessesView: View {
                 .width(90)
         }
         .navigationTitle("Processes")
-        .task { if state.processes.isEmpty { await state.loadProcesses() } }
+        .task(id: state.selectedServerID) { await state.loadProcesses() }
         .overlay {
             if state.processes.isEmpty {
                 ContentUnavailableView("No processes loaded", systemImage: "list.bullet.rectangle", description: Text("Refresh after SSH is connected."))

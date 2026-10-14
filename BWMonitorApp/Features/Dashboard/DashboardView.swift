@@ -13,6 +13,7 @@ struct DashboardView: View {
                         metrics: state.selectedMetrics,
                         traffic: state.selectedTraffic,
                         awsTraffic: state.selectedAWSTraffic,
+                        cloudTraffic: state.selectedCloudTraffic,
                         isOnline: state.isOnline(server.id),
                         sshConnected: state.selectedConnection.isConnected
                     )
@@ -29,6 +30,11 @@ struct DashboardView: View {
                     if let traffic = state.selectedAWSTraffic {
                         AWSTrafficSection(traffic: traffic, issue: state.selectedTrafficIssue)
                     } else if server.provider == .awsLightsail, let issue = state.selectedTrafficIssue {
+                        TrafficIssueCard(message: issue, hasCachedData: false)
+                    }
+                    if let traffic = state.selectedCloudTraffic {
+                        CloudTrafficSection(provider: server.provider, traffic: traffic, issue: state.selectedTrafficIssue)
+                    } else if server.provider.supportsCloudTraffic, let issue = state.selectedTrafficIssue {
                         TrafficIssueCard(message: issue, hasCachedData: false)
                     }
 
@@ -50,6 +56,7 @@ private struct ServerHero: View {
     let metrics: ServerMetrics?
     let traffic: BandwagonTraffic?
     let awsTraffic: AWSMonthlyTraffic?
+    let cloudTraffic: CloudProviderTraffic?
     let isOnline: Bool?
     let sshConnected: Bool
 
@@ -78,10 +85,12 @@ private struct ServerHero: View {
                     .textSelection(.enabled)
                 HStack(spacing: 18) {
                     StatusLabel(text: "SSH", active: sshConnected)
-                    StatusLabel(
-                        text: server.provider == .awsLightsail ? "AWS Lightsail" : "KiwiVM",
-                        active: traffic != nil || awsTraffic != nil
-                    )
+                    if server.provider.supportsTrafficAPI {
+                        StatusLabel(
+                            text: server.provider == .bandwagonHost ? "KiwiVM" : server.provider.rawValue,
+                            active: traffic != nil || awsTraffic != nil || cloudTraffic != nil
+                        )
+                    }
                 }
                 .padding(.top, 4)
             }
@@ -114,7 +123,7 @@ struct TrafficIssueCard: View {
     var body: some View {
         Label {
             VStack(alignment: .leading, spacing: 3) {
-                Text(hasCachedData ? "AWS traffic may be stale" : "AWS traffic is not available")
+                Text(hasCachedData ? "Traffic may be stale" : "Traffic is not available")
                     .font(.headline)
                 Text(message)
                     .foregroundStyle(.secondary)
@@ -369,6 +378,69 @@ struct AWSTrafficSection: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.caption).foregroundStyle(.secondary)
             Text(value.byteString).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(color)
+        }
+    }
+}
+
+struct CloudTrafficSection: View {
+    let provider: ServerProvider
+    let traffic: CloudProviderTraffic
+    let issue: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(provider.rawValue + " · " + NSLocalizedString("Monthly Traffic", comment: "Cloud traffic title"))
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                if provider == .hetznerCloud {
+                    Text("Calendar-month billing").foregroundStyle(.secondary)
+                } else {
+                    (Text("Resets ") + Text(traffic.nextReset, format: .dateTime.month(.abbreviated).day()) + Text(" UTC"))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            HStack(spacing: 26) {
+                value("Inbound", traffic.inbound, color: .blue)
+                value("Outbound", traffic.outbound, color: .mint)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("Monthly quota").font(.caption).foregroundStyle(.secondary)
+                    Text(traffic.limit?.byteString ?? NSLocalizedString("Quota unavailable", comment: "Cloud quota"))
+                        .font(.callout.weight(.medium))
+                    Text(traffic.quotaSource == "override" ? "manual override" : "provider allowance")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let percentage = traffic.usagePercentage {
+                ProgressView(value: percentage).tint(percentage >= 0.8 ? .orange : .green)
+                HStack {
+                    Text(percentage, format: BWFormat.percentage)
+                    Spacer()
+                    if let remaining = traffic.remaining { Text("\(remaining.byteString) remaining") }
+                }
+                .font(.callout).foregroundStyle(.secondary)
+            }
+            Text(provider == .vultr
+                 ? "Outgoing traffic is compared with the instance plan allowance. Vultr's shared account pool and hourly allocation may differ."
+                 : "Only outgoing traffic counts toward the allowance. Incoming traffic is displayed separately.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let latest = traffic.latestDataPoint {
+                (Text("Latest daily record ") + Text(latest, format: .dateTime.year().month().day()) + Text(" UTC"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            (Text("Refreshed ") + Text(traffic.lastUpdated, style: .relative) + Text(" ago"))
+                .font(.caption).foregroundStyle(.secondary)
+            if let issue { TrafficIssueCard(message: issue, hasCachedData: true) }
+        }
+        .padding(20)
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func value(_ label: LocalizedStringKey, _ bytes: UInt64?, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(bytes?.byteString ?? "—").font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(color)
         }
     }
 }

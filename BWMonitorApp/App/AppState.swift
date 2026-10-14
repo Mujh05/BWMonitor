@@ -9,6 +9,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     case performance = "Performance"
     case network = "Network"
     case traffic = "Traffic"
+    case files = "Files"
     case terminal = "Terminal"
     case services = "Services"
     case processes = "Processes"
@@ -27,6 +28,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
         case .performance: "gauge.with.dots.needle.50percent"
         case .network: "arrow.up.arrow.down"
         case .traffic: "chart.xyaxis.line"
+        case .files: "folder"
         case .terminal: "terminal"
         case .services: "gearshape.2"
         case .processes: "list.bullet.rectangle"
@@ -112,6 +114,7 @@ final class AppState: ObservableObject {
     @Published var metricsByServer: [UUID: ServerMetrics] = [:]
     @Published var trafficByServer: [UUID: BandwagonTraffic] = [:]
     @Published var awsTrafficByServer: [UUID: AWSMonthlyTraffic] = [:]
+    @Published var cloudTrafficByServer: [UUID: CloudProviderTraffic] = [:]
     @Published var trafficIssueByServer: [UUID: String] = [:]
     @Published var connectionByServer: [UUID: ConnectionState] = [:]
     @Published var history: [MetricRecord] = []
@@ -136,6 +139,7 @@ final class AppState: ObservableObject {
     let repository = ServerRepository()
     let kiwi = KiwiVMClient()
     let lightsail = AWSLightsailClient()
+    let cloudProviders = CloudProviderClient()
     let notifications = NotificationManager()
     let historyStore: HistoryStore?
 
@@ -145,6 +149,7 @@ final class AppState: ObservableObject {
     private var deliveredAlerts = Set<String>()
     private var lastHistoryWrite: [UUID: Date] = [:]
     private var cpuHighSince: [UUID: Date] = [:]
+    private var serverRevisions: [UUID: UUID] = [:]
     private var lastWidgetReload = Date.distantPast
     private var lastWidgetOnline: Bool?
     private var terminationObserver: NSObjectProtocol?
@@ -165,6 +170,10 @@ final class AppState: ObservableObject {
 
     var selectedAWSTraffic: AWSMonthlyTraffic? {
         selectedServerID.flatMap { awsTrafficByServer[$0] }
+    }
+
+    var selectedCloudTraffic: CloudProviderTraffic? {
+        selectedServerID.flatMap { cloudTrafficByServer[$0] }
     }
 
     var selectedTrafficIssue: String? {
@@ -263,6 +272,17 @@ final class AppState: ObservableObject {
         }
         try await repository.save(updated)
         servers = updated
+        serverRevisions[server.id] = UUID()
+        if previous?.provider != server.provider || previous?.veid != server.veid
+            || previous?.awsInstanceName != server.awsInstanceName || previous?.awsRegion != server.awsRegion
+            || previous?.awsMonthlyTransferOverrideGB != server.awsMonthlyTransferOverrideGB
+            || previous?.cloudInstanceID != server.cloudInstanceID
+            || previous?.cloudMonthlyTransferOverrideGB != server.cloudMonthlyTransferOverrideGB {
+            trafficByServer[server.id] = nil
+            awsTrafficByServer[server.id] = nil
+            cloudTrafficByServer[server.id] = nil
+            trafficIssueByServer[server.id] = nil
+        }
         if case .needsAttention = connectionByServer[server.id] {
             connectionByServer[server.id] = .idle
         }
@@ -289,6 +309,7 @@ final class AppState: ObservableObject {
             metricsByServer[server.id] = nil
             trafficByServer[server.id] = nil
             awsTrafficByServer[server.id] = nil
+            cloudTrafficByServer[server.id] = nil
             trafficIssueByServer[server.id] = nil
             connectionByServer[server.id] = nil
             if selectedServerID == server.id { selectedServerID = servers.first?.id }
@@ -306,14 +327,22 @@ final class AppState: ObservableObject {
         reloadHistory()
     }
 
+    private func acceptsResult(for serverID: UUID, revision: UUID?) -> Bool {
+        !Task.isCancelled && servers.contains(where: { $0.id == serverID })
+            && serverRevisions[serverID] == revision
+    }
+
     // MARK: Monitoring
 
     func refreshAll() async {
-        guard let server = selectedServer, !isDemoMode else { return }
+        guard let server = selectedServer, !isDemoMode, !isRefreshing else { return }
+        let revision = serverRevisions[server.id]
         isRefreshing = true
         defer { isRefreshing = false }
         _ = await collectMetrics(serverID: server.id)
+        guard selectedServerID == server.id, acceptsResult(for: server.id, revision: revision) else { return }
         await refreshTraffic(server, reportingErrors: true)
+        guard selectedServerID == server.id, acceptsResult(for: server.id, revision: revision) else { return }
         if selection == .services { await loadServices() }
         if selection == .processes { await loadProcesses() }
     }
@@ -348,7 +377,7 @@ final class AppState: ObservableObject {
                 }
             }
         }
-        if server.provider == .bandwagonHost || server.provider == .awsLightsail {
+        if server.provider.supportsTrafficAPI {
             kiwiTasks[serverID] = Task { [weak self] in
                 while !Task.isCancelled {
                     guard let self, let server = self.servers.first(where: { $0.id == serverID }) else { return }
@@ -393,6 +422,7 @@ final class AppState: ObservableObject {
 
     private func collectMetrics(serverID: UUID) async -> CollectionOutcome {
         guard let server = servers.first(where: { $0.id == serverID }) else { return .stop }
+        let revision = serverRevisions[serverID]
         guard ssh.isTrusted(server) else {
             connectionByServer[serverID] = .needsAttention(.hostNotTrusted)
             return .stop
@@ -400,11 +430,13 @@ final class AppState: ObservableObject {
         if connectionByServer[serverID] != .connected { connectionByServer[serverID] = .connecting }
         do {
             let result = try await monitoring.refresh(server: server)
+            guard acceptsResult(for: serverID, revision: revision) else { return .stop }
             connectionByServer[serverID] = .connected
             await apply(result, to: server)
             return .success
         } catch {
-            if Task.isCancelled || error is CancellationError { return .stop }
+            guard acceptsResult(for: serverID, revision: revision),
+                  !OperationCancellation.isCancellation(error) else { return .stop }
             metricsByServer[serverID] = nil
             if let error = error as? SSHError {
                 if error.needsUserAction {
@@ -433,7 +465,8 @@ final class AppState: ObservableObject {
                 let record = try historyStore?.append(
                     serverID: server.id,
                     metrics: result.metrics,
-                    trafficUsed: trafficByServer[server.id]?.used ?? awsTrafficByServer[server.id]?.used ?? 0
+                    trafficUsed: trafficByServer[server.id]?.used ?? awsTrafficByServer[server.id]?.used
+                        ?? cloudTrafficByServer[server.id]?.used ?? 0
                 )
                 lastHistoryWrite[server.id] = .now
                 if let record, server.id == selectedServerID { history.append(record) }
@@ -450,20 +483,24 @@ final class AppState: ObservableObject {
     }
 
     private func refreshTraffic(_ server: Server, reportingErrors: Bool) async {
+        let revision = serverRevisions[server.id]
+        guard acceptsResult(for: server.id, revision: revision) else { return }
         do {
             switch server.provider {
             case .bandwagonHost:
                 guard let apiKey = try keychain.read(for: server.id, kind: .kiwiAPIKey), !apiKey.isEmpty else {
                     throw KiwiVMError.invalidConfiguration
                 }
-                trafficByServer[server.id] = try await kiwi.serviceInfo(veid: server.veid, apiKey: apiKey)
+                let traffic = try await kiwi.serviceInfo(veid: server.veid, apiKey: apiKey)
+                guard acceptsResult(for: server.id, revision: revision) else { return }
+                trafficByServer[server.id] = traffic
             case .awsLightsail:
                 guard let accessKeyID = try keychain.read(for: server.id, kind: .awsAccessKeyID), !accessKeyID.isEmpty,
                       let secretAccessKey = try keychain.read(for: server.id, kind: .awsSecretAccessKey), !secretAccessKey.isEmpty else {
                     throw AWSLightsailError.invalidConfiguration
                 }
                 let sessionToken = try keychain.read(for: server.id, kind: .awsSessionToken)
-                awsTrafficByServer[server.id] = try await lightsail.monthlyTraffic(
+                let traffic = try await lightsail.monthlyTraffic(
                     instanceName: server.awsInstanceName,
                     region: server.awsRegion,
                     credentials: AWSCredentials(
@@ -473,7 +510,19 @@ final class AppState: ObservableObject {
                     ),
                     quotaOverrideGB: server.awsMonthlyTransferOverrideGB
                 )
-            case .genericLinux:
+                guard acceptsResult(for: server.id, revision: revision) else { return }
+                awsTrafficByServer[server.id] = traffic
+            case .vultr, .hetznerCloud:
+                guard !server.cloudInstanceID.isEmpty,
+                      let apiToken = try keychain.readCloudToken(for: server.id, provider: server.provider), !apiToken.isEmpty else {
+                    cloudTrafficByServer[server.id] = nil
+                    trafficIssueByServer[server.id] = nil
+                    return
+                }
+                let traffic = try await cloudProviders.fetchTraffic(server: server, apiToken: apiToken)
+                guard acceptsResult(for: server.id, revision: revision) else { return }
+                cloudTrafficByServer[server.id] = traffic
+            case .digitalOcean, .alibabaCloud, .tencentCloud, .oracleCloud, .genericLinux:
                 return
             }
             trafficIssueByServer[server.id] = nil
@@ -481,10 +530,10 @@ final class AppState: ObservableObject {
             saveWidgetSnapshot(server)
             await evaluateAlerts(server)
         } catch {
-            if !(error is CancellationError) {
-                trafficIssueByServer[server.id] = error.localizedDescription
-            }
-            if reportingErrors, !(error is CancellationError) {
+            guard acceptsResult(for: server.id, revision: revision),
+                  !OperationCancellation.isCancellation(error) else { return }
+            trafficIssueByServer[server.id] = error.localizedDescription
+            if reportingErrors, selectedServerID == server.id {
                 lastError = String(
                     format: NSLocalizedString("Could not refresh traffic for %@: %@", comment: "Traffic refresh error"),
                     server.name,
@@ -537,7 +586,7 @@ final class AppState: ObservableObject {
         case .retrying:
             return false
         default:
-            return trafficByServer[serverID]?.serverOnline
+            return trafficByServer[serverID]?.serverOnline ?? cloudTrafficByServer[serverID]?.serverOnline
         }
     }
 
@@ -545,11 +594,13 @@ final class AppState: ObservableObject {
 
     func loadServices() async {
         guard let server = selectedServer, !isDemoMode else { return }
+        let revision = serverRevisions[server.id]
         do {
             let output = try await ssh.execute(
                 "systemctl list-units --type=service --state=running --no-legend --no-pager | head -100",
                 on: server
             )
+            guard selectedServerID == server.id, acceptsResult(for: server.id, revision: revision) else { return }
             services = output.components(separatedBy: .newlines).compactMap { line in
                 let fields = line.split(maxSplits: 4, whereSeparator: { $0.isWhitespace })
                 guard fields.count >= 4 else { return nil }
@@ -561,17 +612,21 @@ final class AppState: ObservableObject {
                 )
             }
         } catch {
+            guard selectedServerID == server.id, acceptsResult(for: server.id, revision: revision),
+                  !OperationCancellation.isCancellation(error) else { return }
             lastError = error.localizedDescription
         }
     }
 
     func loadProcesses() async {
         guard let server = selectedServer, !isDemoMode else { return }
+        let revision = serverRevisions[server.id]
         do {
             let output = try await ssh.execute(
                 "ps -eo pid,comm,%cpu,%mem --sort=-%cpu --no-headers | head -50",
                 on: server
             )
+            guard selectedServerID == server.id, acceptsResult(for: server.id, revision: revision) else { return }
             processes = output.components(separatedBy: .newlines).compactMap { line in
                 let fields = line.split(whereSeparator: { $0.isWhitespace })
                 guard fields.count >= 4,
@@ -581,6 +636,8 @@ final class AppState: ObservableObject {
                 return RemoteProcessInfo(id: pid, name: String(fields[1]), cpu: cpu, memory: memory)
             }
         } catch {
+            guard selectedServerID == server.id, acceptsResult(for: server.id, revision: revision),
+                  !OperationCancellation.isCancellation(error) else { return }
             lastError = error.localizedDescription
         }
     }
@@ -674,6 +731,7 @@ final class AppState: ObservableObject {
             metrics: metricsByServer[server.id],
             traffic: trafficByServer[server.id],
             awsTraffic: awsTrafficByServer[server.id],
+            cloudTraffic: cloudTrafficByServer[server.id],
             isOnline: online
         )
         try? WidgetSnapshotStore.save(snapshot)
@@ -712,6 +770,7 @@ final class AppState: ObservableObject {
             metrics: metrics,
             traffic: trafficByServer[server.id],
             awsTraffic: awsTrafficByServer[server.id],
+            cloudTraffic: cloudTrafficByServer[server.id],
             thresholds: thresholds,
             cpuSustained: cpuSustained
         ) where !deliveredAlerts.contains(alert.key) {

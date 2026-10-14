@@ -3,7 +3,20 @@ import Foundation
 public enum ServerProvider: String, Codable, CaseIterable, Sendable {
     case bandwagonHost = "BandwagonHost"
     case awsLightsail = "AWS Lightsail"
+    case digitalOcean = "DigitalOcean"
+    case vultr = "Vultr"
+    case hetznerCloud = "Hetzner Cloud"
+    case alibabaCloud = "Alibaba Cloud"
+    case tencentCloud = "Tencent Cloud"
+    case oracleCloud = "Oracle Cloud"
     case genericLinux = "Generic Linux"
+
+    /// Providers with an implemented, read-only monthly transfer endpoint.
+    public var supportsCloudTraffic: Bool { self == .vultr || self == .hetznerCloud }
+
+    public var supportsTrafficAPI: Bool {
+        self == .bandwagonHost || self == .awsLightsail || supportsCloudTraffic
+    }
 }
 
 /// Raw values are stored in `servers.json`; keep them unchanged.
@@ -31,6 +44,8 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
     public var awsInstanceName: String
     public var awsRegion: String
     public var awsMonthlyTransferOverrideGB: Double?
+    public var cloudInstanceID: String
+    public var cloudMonthlyTransferOverrideGB: Double?
     public var operatingSystem: String
     public var authentication: SSHAuthentication
     public var privateKeyPath: String
@@ -47,6 +62,8 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         awsInstanceName: String = "",
         awsRegion: String = "",
         awsMonthlyTransferOverrideGB: Double? = nil,
+        cloudInstanceID: String = "",
+        cloudMonthlyTransferOverrideGB: Double? = nil,
         operatingSystem: String = "Linux",
         authentication: SSHAuthentication = .key,
         privateKeyPath: String = "",
@@ -62,6 +79,8 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         self.awsInstanceName = awsInstanceName
         self.awsRegion = awsRegion
         self.awsMonthlyTransferOverrideGB = awsMonthlyTransferOverrideGB
+        self.cloudInstanceID = cloudInstanceID
+        self.cloudMonthlyTransferOverrideGB = cloudMonthlyTransferOverrideGB
         self.operatingSystem = operatingSystem
         self.authentication = authentication
         self.privateKeyPath = privateKeyPath
@@ -82,6 +101,8 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         awsInstanceName = try container.decodeIfPresent(String.self, forKey: .awsInstanceName) ?? ""
         awsRegion = try container.decodeIfPresent(String.self, forKey: .awsRegion) ?? ""
         awsMonthlyTransferOverrideGB = try container.decodeIfPresent(Double.self, forKey: .awsMonthlyTransferOverrideGB)
+        cloudInstanceID = try container.decodeIfPresent(String.self, forKey: .cloudInstanceID) ?? ""
+        cloudMonthlyTransferOverrideGB = try container.decodeIfPresent(Double.self, forKey: .cloudMonthlyTransferOverrideGB)
         operatingSystem = try container.decodeIfPresent(String.self, forKey: .operatingSystem) ?? "Linux"
         authentication = (try? container.decodeIfPresent(SSHAuthentication.self, forKey: .authentication)) ?? .key
         privateKeyPath = try container.decodeIfPresent(String.self, forKey: .privateKeyPath) ?? ""
@@ -104,8 +125,12 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         copy.veid = veid.trimmingCharacters(in: .whitespacesAndNewlines)
         copy.awsInstanceName = awsInstanceName.trimmingCharacters(in: .whitespacesAndNewlines)
         copy.awsRegion = awsRegion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let override = copy.awsMonthlyTransferOverrideGB, override <= 0 {
+        copy.cloudInstanceID = cloudInstanceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let override = copy.awsMonthlyTransferOverrideGB, !override.isFinite || override <= 0 {
             copy.awsMonthlyTransferOverrideGB = nil
+        }
+        if let override = copy.cloudMonthlyTransferOverrideGB, !override.isFinite || override <= 0 {
+            copy.cloudMonthlyTransferOverrideGB = nil
         }
         copy.privateKeyPath = privateKeyPath.trimmingCharacters(in: .whitespacesAndNewlines)
         return copy
@@ -133,6 +158,43 @@ public struct Server: Codable, Identifiable, Hashable, Sendable {
         veid: "1000000",
         operatingSystem: "Ubuntu 24.04"
     )
+}
+
+/// Provider billing counters. Both Vultr and Hetzner bill outgoing traffic;
+/// a per-instance plan allowance is not an account-wide pooled billing limit.
+public struct CloudProviderTraffic: Codable, Equatable, Sendable {
+    public var inbound: UInt64?
+    public var outbound: UInt64
+    public var limit: UInt64?
+    public var quotaSource: String
+    public var periodStart: Date
+    /// Calculated UTC calendar-month boundary. Hetzner's endpoint returns no
+    /// reset timestamp; callers must label this as an estimate for that provider.
+    public var nextReset: Date
+    public var latestDataPoint: Date?
+    public var lastUpdated: Date
+    public var serverOnline: Bool?
+
+    public init(inbound: UInt64?, outbound: UInt64, limit: UInt64?, quotaSource: String,
+                periodStart: Date, nextReset: Date, latestDataPoint: Date? = nil,
+                lastUpdated: Date = .now, serverOnline: Bool? = nil) {
+        self.inbound = inbound
+        self.outbound = outbound
+        self.limit = limit
+        self.quotaSource = quotaSource
+        self.periodStart = periodStart
+        self.nextReset = nextReset
+        self.latestDataPoint = latestDataPoint
+        self.lastUpdated = lastUpdated
+        self.serverOnline = serverOnline
+    }
+
+    public var used: UInt64 { outbound }
+    public var remaining: UInt64? { limit.map { $0 > used ? $0 - used : 0 } }
+    public var usagePercentage: Double? {
+        guard let limit, limit > 0 else { return nil }
+        return min(max(Double(used) / Double(limit), 0), 1)
+    }
 }
 
 public struct ServerMetrics: Codable, Equatable, Sendable {

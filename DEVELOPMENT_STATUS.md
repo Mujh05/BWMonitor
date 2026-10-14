@@ -1,5 +1,30 @@
 # ServerDock Development Status
 
+## 1.5.0 / build 13
+
+- Six added provider choices: DigitalOcean, Vultr, Hetzner Cloud, Alibaba Cloud,
+  Tencent Cloud, Oracle Cloud. All use actual SSH metrics, commands and files.
+  Read-only billing traffic APIs are implemented for Vultr and Hetzner only.
+- Native iOS/iPadOS target, direct Citadel SSH/SFTP, device-only private-key
+  storage, explicit SHA256 host trust, non-secret configuration import/export.
+- Mac remote file browser and Finder drop upload; file transfers also available
+  to AI/script CLI as `files`, `upload`, `download`. Uploads preserve existing
+  destinations; automatic downloads never overwrite existing local files.
+- View/task cancellation does not raise a false connection error. Old-server
+  service/process results are rejected after a switch or configuration change.
+- `swift test`: 12 XCTest + 84 Swift Testing checks pass. Signed macOS Release
+  build passes. AWS live directory/upload/download roundtrip (128 KiB binary,
+  special-character filename) passed with equal SHA256 and rejected duplicate.
+- iPhone 17 Pro simulator hosted tests: 4 passed / 0 failures, including actual
+  loopback TCP SSH/SFTP, host identity rejection, 160,007-byte binary roundtrip,
+  no-overwrite publication, cancellation cleanup and native RSA PEM import.
+  Generic iOS Release arm64 builds without signing; this is not device install
+  or TestFlight proof. RSA SHA2 authentication remains an iOS dependency limit.
+- iOS build/runtime evidence is recorded in the final release notes. No new
+  provider account tokens were supplied, so Vultr/Hetzner checks use fixtures.
+
+Historical verification below applies to the stated older releases.
+
 ## Implemented
 
 - [x] Multiple VPS model and server editor

@@ -25,6 +25,7 @@ struct ServerEditorView: View {
                     signInSection
                     if model.draft.provider == .bandwagonHost { kiwiSection }
                     if model.draft.provider == .awsLightsail { awsSection }
+                    if model.draft.provider.supportsCloudTraffic { cloudSection }
                     if model.test != .idle { testSection.id("test") }
                 }
                 .formStyle(.grouped)
@@ -62,6 +63,11 @@ struct ServerEditorView: View {
                 ForEach(ServerProvider.allCases, id: \.self) {
                     Text(LocalizedStringKey($0.rawValue)).tag($0)
                 }
+            }
+            if !model.draft.provider.supportsTrafficAPI {
+                Text("SSH monitoring, terminal, and remote files are available. Monthly billing traffic is not connected for this provider.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -317,6 +323,28 @@ struct ServerEditorView: View {
             Text("AWS Lightsail")
         } footer: {
             Text("ServerDock only reads the instance, bundle allowance, and NetworkIn/NetworkOut metrics. Credentials stay in macOS Keychain. A monthly override is used only when the bundle allowance cannot be read or you enter one explicitly.")
+        }
+    }
+
+    private var cloudSection: some View {
+        Section {
+            TextField("Provider instance ID", text: $model.draft.cloudInstanceID,
+                      prompt: Text(model.draft.provider == .vultr ? "Instance UUID" : "Numeric server ID"))
+            SecureField("Read-only API token", text: $model.cloudAPIKey,
+                        prompt: Text(model.hasSavedCloudAPIKey && model.original?.provider == model.draft.provider ? "Saved in Keychain" : "Optional"))
+            TextField("Monthly transfer override (GB)", value: $model.draft.cloudMonthlyTransferOverrideGB,
+                      format: .number.precision(.fractionLength(0...2)), prompt: Text("Use provider allowance"))
+        } header: {
+            Text(model.draft.provider.rawValue)
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Add the instance ID and a read-only token to load provider traffic. Leave them blank to use SSH monitoring and files only. The token stays in Keychain.")
+                if model.draft.provider == .vultr {
+                    Text("Vultr usage is summed from this month's UTC daily records. The displayed plan allowance is per instance; Vultr billing uses a shared account pool.")
+                } else {
+                    Text("Hetzner reports billing-month transfer in bytes. Only outgoing traffic counts toward the allowance.")
+                }
+            }
         }
     }
 

@@ -41,6 +41,7 @@ final class ServerEditorModel: ObservableObject {
     @Published var awsAccessKeyID = ""
     @Published var awsSecretAccessKey = ""
     @Published var awsSessionToken = ""
+    @Published var cloudAPIKey = ""
     @Published var password = ""
     @Published var passphrase = ""
     @Published private(set) var hostKey: HostKeyState = .notChecked
@@ -60,6 +61,7 @@ final class ServerEditorModel: ObservableObject {
     let hasSavedAWSAccessKeyID: Bool
     let hasSavedAWSSecretAccessKey: Bool
     let hasSavedAWSSessionToken: Bool
+    let hasSavedCloudAPIKey: Bool
 
     private let state: AppState
     private let probeID = UUID()
@@ -75,6 +77,7 @@ final class ServerEditorModel: ObservableObject {
         hasSavedAWSAccessKeyID = server.map { state.keychain.contains($0.id, kind: .awsAccessKeyID) } ?? false
         hasSavedAWSSecretAccessKey = server.map { state.keychain.contains($0.id, kind: .awsSecretAccessKey) } ?? false
         hasSavedAWSSessionToken = server.map { state.keychain.contains($0.id, kind: .awsSessionToken) } ?? false
+        hasSavedCloudAPIKey = server.map { state.keychain.contains($0.id, kind: .cloudAPIKey) } ?? false
         let appKey = state.keyStore.appKey()
         let discovered = SSHKeyInspector.discoverKeys()
 
@@ -148,6 +151,15 @@ final class ServerEditorModel: ObservableObject {
             }
             if server.awsRegion.isEmpty {
                 return NSLocalizedString("Enter the AWS region.", comment: "Server form validation")
+            }
+        }
+        if server.provider.supportsCloudTraffic {
+            if !server.cloudInstanceID.isEmpty,
+               !CloudProviderClient.isValidInstanceID(server.cloudInstanceID, provider: server.provider) {
+                return NSLocalizedString("Enter a valid provider instance ID.", comment: "Server form validation")
+            }
+            if (!cloudAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (hasSavedCloudAPIKey && original?.provider == server.provider)), server.cloudInstanceID.isEmpty {
+                return NSLocalizedString("Enter an instance ID to use the provider API token.", comment: "Server form validation")
             }
         }
         return nil
@@ -398,6 +410,18 @@ final class ServerEditorModel: ObservableObject {
                 server.awsRegion = ""
                 server.awsMonthlyTransferOverrideGB = nil
             }
+            if server.provider.supportsCloudTraffic {
+                if !cloudAPIKey.isEmpty {
+                    try keychain.saveCloudToken(cloudAPIKey.trimmingCharacters(in: .whitespacesAndNewlines), for: server.id, provider: server.provider)
+                } else if original?.provider != server.provider {
+                    // A token belongs to a provider; never reuse it after a switch.
+                    try keychain.delete(server.id, kind: .cloudAPIKey)
+                }
+            } else {
+                try keychain.delete(server.id, kind: .cloudAPIKey)
+                server.cloudInstanceID = ""
+                server.cloudMonthlyTransferOverrideGB = nil
+            }
             // Keep only the secrets the chosen sign-in method needs.
             switch server.authentication {
             case .password:
@@ -434,6 +458,7 @@ final class ServerEditorModel: ObservableObject {
     // MARK: Helpers
 
     private func draftChanged(from old: Server) {
+        if old.provider != draft.provider { cloudAPIKey = "" }
         if old.host != draft.host || old.port != draft.port {
             refreshHostKeyState()
         }
