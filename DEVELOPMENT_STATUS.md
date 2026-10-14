@@ -21,10 +21,10 @@
   Generic iOS Release arm64 builds without signing; this is not device install
   or TestFlight proof. RSA SHA2 authentication remains an iOS dependency limit.
 - A subsequent signed development build was installed on the paired iPhone
-  15 Pro Max on 2026-10-14. iOS rejected the first launch with its code-signing /
-  developer-trust security check. Bundle/team identity and local signature
-  validate; the user must explicitly trust the developer on the phone before
-  physical-device launch acceptance can be completed. No iOS IPA is published.
+  15 Pro Max on 2026-10-14. After the user confirmed developer trust, CoreDevice
+  successfully launched `com.mujh.ServerDock.iOS` on the physical phone.
+  Live VPS acceptance on iOS still requires device-local SSH/API credentials;
+  desktop secrets have not been transferred. No device-bound IPA is published.
 - iOS build/runtime evidence is recorded in the final release notes. No new
   provider account tokens were supplied, so Vultr/Hetzner checks use fixtures.
 
